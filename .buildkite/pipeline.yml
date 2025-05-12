@@ -3,7 +3,7 @@ steps:
     commands:
       - echo "Bulding Fast API Docker Image"
       - cd api
-      - docker buildx build -t sm01/cesarion:${C-1} -f Dockerfile .
+      - docker build -t sm01/cesarion:${C-1} -f Dockerfile .
       - docker push sm01/cesarion:${C-1}
 
   - label: ":package: Build Frontend Docker Image"
