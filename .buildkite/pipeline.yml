@@ -3,12 +3,12 @@ steps:
     commands:
       - echo "Bulding Fast API Docker Image"
       - cd api
-      - docker build sm01/cesarion:${C-1} -f Dockerfile .
+      - docker build -t sm01/cesarion:${C-1} -f Dockerfile .
       - docker push sm01/cesarion:${C-1}
 
   - label: ":package: Build Frontend Docker Image"
     commands:
       - echo "Building Next.js Docker Image"
       - cd frontend
-      - docker build sm01/cesarion${C-1} -f Dockerfile .
+      - docker build -t sm01/cesarion${C-1} -f Dockerfile .
       - docker push sm01/cesarion${C-1}
