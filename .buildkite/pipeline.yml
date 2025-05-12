@@ -1,0 +1,14 @@
+steps:
+  - label: ":package: Build Backend Docker Image"
+    commands:
+      - echo "Bulding Fast API Docker Image"
+      - cd api
+      - docker build <registry>/fastapi-app:${COMMIT} -f Dockerfile .
+      - docker push <registry>/fastap-app
+
+  - label: ":package: Build Frontend Docker Image"
+    commands:
+      - echo "Building Next.js Docker Image"
+      - cd frontend
+      - docker build <registry>/nextjs-app${COMMIT} -f Dockerfile .
+      - docker push <registry>/nextjs-app${COMMIT}
