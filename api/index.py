@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
-from .utils.prompt import ClientMessage, convert_to_openai_messages
-from .utils.tools import get_current_weather
+
+from utils.prompt import ClientMessage, convert_to_openai_messages
+from utils.tools import get_current_weather
 
 
 load_dotenv(".env.local")
@@ -139,9 +140,6 @@ def stream_text(messages: List[ChatCompletionMessageParam], protocol: str = 'dat
                 prompt=prompt_tokens,
                 completion=completion_tokens
             )
-
-
-
 
 @app.post("/api/chat")
 async def handle_chat_data(request: Request, protocol: str = Query('data')):
