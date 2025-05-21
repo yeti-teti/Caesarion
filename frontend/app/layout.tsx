@@ -4,6 +4,17 @@ import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/navbar";
 
+import { AppSidebar } from "@/components/sidenav/app-sidebar"
+
+import { Separator } from "@/components/ui/side/separator"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/side/sidebar"
+
+
+
 export const metadata = {
   title: "AI SDK Python Streaming Preview",
   description:
@@ -34,9 +45,21 @@ export default function RootLayout({
     <html lang="en">
       <head></head>
       <body className={cn(GeistSans.className, "antialiased dark")}>
-        <Toaster position="top-center" richColors />
-        <Navbar />
-        {children}
+
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2">
+            <div className="flex items-center gap-2 px-4">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <Toaster position="top-center" richColors />
+              <Navbar />
+            </div>
+          </header>
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
       </body>
     </html>
   );

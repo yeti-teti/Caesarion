@@ -4,12 +4,13 @@ from typing import List
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 
 from utils.prompt import ClientMessage, convert_to_openai_messages
 from utils.tools import get_current_weather
+from utils.tools import execute_code
 
 
 load_dotenv(".env.local")
@@ -140,6 +141,13 @@ def stream_text(messages: List[ChatCompletionMessageParam], protocol: str = 'dat
                 prompt=prompt_tokens,
                 completion=completion_tokens
             )
+
+@app.post("/execute")
+async def execute(request: dict):
+    if "code" not in request:
+        raise HTTPException(status_code=400, detail="Missing 'code' field")
+    
+    return await execute_code(request["code"])
 
 @app.post("/api/chat")
 async def handle_chat_data(request: Request, protocol: str = Query('data')):
