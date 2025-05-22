@@ -5,6 +5,9 @@ import time
 import docker
 import httpx
 import uuid
+import sys
+import traceback
+from io import StringIO
 from typing import List
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -18,23 +21,29 @@ from fastapi.responses import StreamingResponse
 
 from utils.prompt import ClientMessage, convert_to_openai_messages
 from utils.tools import get_current_weather
-from utils.tools import execute_code
 
 
 load_dotenv(".env.local")
 
 # Configuration
-IMAGE_NAME = "fastapi-jupyter-server"
+IMAGE_NAME = "fastapi-jupyter-server:latest"
 CONTAINER_PREFIX = "sandbox_"
 SANDBOX_PORT = 8000
 IDLE_TIMEOUT = 3600
 CHECK_INTERVAL = 3600
 
-client_container = docker.from_env()
+# client_container = docker.from_env()
+client_container = None
+if not os.environ.get("IS_SANDBOX"):
+    client_container = docker.from_env()
 hx = httpx.AsyncClient()
 last_active = {}
 
 async def terminate_idle_sandboxes():
+
+    if client_container is None:
+        return []
+
     while True:
         await asyncio.sleep(CHECK_INTERVAL)
         now = time.time()
@@ -210,6 +219,8 @@ class ExecuteRequest(BaseModel):
     code: str
 
 def list_sandboxes():
+    if client_container is None:
+        return []
     return client_container.containers.list(filters={"label": "sbx=1"})
 
 @app.get("/sandboxes")
@@ -240,6 +251,7 @@ async def create_sandbox(request: CreateSandboxRequest):
             tty=False,
             ports={f"{SANDBOX_PORT}/tcp": 0},  # Auto-assign a port
             # network="sandbox-network"
+            environment={"IS_SANDBOX": "1"}
         )
         last_active[container.id] = time.time()
         return {"id": container.id, "name": container.name, "status": container.status}
@@ -290,18 +302,72 @@ async def execute_code(sandbox_id: str, request: ExecuteRequest):
         # With Docker Network  
         # sandbox_container_name = container.name
         # sandbox_url = f"http://{sandbox_container_name}:{SANDBOX_PORT}/execute"
-
+        
+        print(f"Attempting to connect to sandbox: {sandbox_url}")  # Debug logging
+        
         async def stream_response():
-            async with hx.stream("POST", sandbox_url, json=request.dict()) as response:
-                if not response.is_success:
-                    raise HTTPException(status_code=response.status_code, detail=f"Execution failed")
-                async for chunk in response.aiter_bytes():
-                    yield chunk
-                    last_active[sandbox_id] = time.time()
-
+            try:
+                async with hx.stream("POST", sandbox_url, json=request.dict()) as response:
+                    if not response.is_success:
+                        raise HTTPException(status_code=response.status_code, detail=f"Execution failed with status {response.status_code}")
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
+                        last_active[sandbox_id] = time.time()
+            except httpx.ConnectError as e:
+                print(f"Connection error to sandbox {sandbox_id}: {e}")
+                raise HTTPException(status_code=503, detail=f"Cannot connect to sandbox - container may not be ready: {str(e)}")
+            except httpx.TimeoutException as e:
+                print(f"Timeout error to sandbox {sandbox_id}: {e}")
+                raise HTTPException(status_code=504, detail="Sandbox request timed out")
+            except httpx.RemoteProtocolError as e:
+                print(f"Protocol error to sandbox {sandbox_id}: {e}")
+                raise HTTPException(status_code=502, detail="Sandbox disconnected unexpectedly")
+            except Exception as e:
+                print(f"Unexpected error with sandbox {sandbox_id}: {e}")
+                raise HTTPException(status_code=500, detail=f"Sandbox execution error: {str(e)}")
+        
         return StreamingResponse(stream_response(), media_type="application/x-ndjson")
+    
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail="Sandbox not found")
+    except Exception as e:
+        raise e
+
+@app.post("/execute")
+async def execute_code_in_sandbox(request: ExecuteRequest):
+    """Execute Python code in this sandbox container"""
+    async def stream_execution():
+        try:
+            # Capture stdout
+            old_stdout = sys.stdout
+            sys.stdout = captured_output = StringIO()
+            
+            # Execute the code
+            exec(request.code)
+            
+            # Get the output
+            output = captured_output.getvalue()
+            sys.stdout = old_stdout
+            
+            # Stream the result
+            result = {
+                "type": "stdout",
+                "content": output,
+                "error": None
+            }
+            yield f"data: {json.dumps(result)}\n\n"
+            
+        except Exception as e:
+            sys.stdout = old_stdout
+            error_result = {
+                "type": "error", 
+                "content": str(e),
+                "traceback": traceback.format_exc()
+            }
+            yield f"data: {json.dumps(error_result)}\n\n"
+    
+    return StreamingResponse(stream_execution(), media_type="text/plain")
+
 
 @app.delete("/sandboxes/{sandbox_id}")
 async def delete_sandbox(sandbox_id: str):
@@ -316,4 +382,3 @@ async def delete_sandbox(sandbox_id: str):
         return {"message": f"Sandbox {sandbox_id} deleted"}
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail="Sandbox not found")
-
