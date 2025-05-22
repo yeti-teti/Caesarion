@@ -1,11 +1,13 @@
-FROM python:3.11-alpine
+# FROM python:3.11
+FROM jupyter/base-notebook
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "index:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
