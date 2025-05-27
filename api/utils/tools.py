@@ -3,7 +3,16 @@ from fastapi.responses import StreamingResponse
 from jupyter_client.manager import AsyncKernelManager
 import asyncio
 import json 
-from io import BytesIO
+from io import BytesIO, StringIO
+
+import sys
+import traceback
+
+import httpx
+import json
+import asyncio
+
+from routers.sandbox import create_sandbox, execute_code, CreateSandboxRequest, ExecuteRequest
 
 def get_current_weather(latitude, longitude):
     # Format the URL with proper parameter substitution
@@ -24,3 +33,7 @@ def get_current_weather(latitude, longitude):
         print(f"Error fetching weather data: {e}")
         return None
 
+async def python_interpreter(code):
+    # TODO
+    # Write http request
+    pass
