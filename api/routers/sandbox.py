@@ -71,7 +71,6 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(terminate_idle_sandboxes())
     yield
 
-# app = FastAPI(lifespan=lifespan)
 router = APIRouter(lifespan=lifespan)
 
 class CreateSandboxRequest(BaseModel):

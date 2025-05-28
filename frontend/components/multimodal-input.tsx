@@ -15,9 +15,10 @@ import { useLocalStorage, useWindowSize } from "usehooks-ts";
 
 import { cn, sanitizeUIMessages } from "@/lib/utils";
 
-import { ArrowUpIcon, StopIcon } from "./icons";
+import { ArrowUpIcon, StopIcon, AttachmentIcon } from "./icons";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
+import { PaperclipIcon } from "lucide-react";
 
 const suggestedActions = [
   {
@@ -26,9 +27,9 @@ const suggestedActions = [
     action: "What is the weather in San Francisco?",
   },
   {
-    title: "How is python useful",
+    title: "Write and execute code",
     label: "for AI engineers?",
-    action: "How is python useful for AI engineers?",
+    action: "Code to calculate factorial of 5",
   },
 ];
 
@@ -63,7 +64,9 @@ export function MultimodalInput({
   ) => void;
   className?: string;
 }) {
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { width } = useWindowSize();
 
   useEffect(() => {
@@ -114,6 +117,21 @@ export function MultimodalInput({
     }
   }, [handleSubmit, setLocalStorageInput, width]);
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+
+    if(files && files.length > 0){
+      const file = files[0];
+      console.log("Selected file:", file);
+
+      // File upload logic
+    }
+  };
+
+  const triggerFileSelect = () =>{
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="relative w-full flex flex-col gap-4">
       {messages.length === 0 && (
@@ -127,6 +145,7 @@ export function MultimodalInput({
               key={`suggested-action-${suggestedAction.title}-${index}`}
               className={index > 1 ? "hidden sm:block" : "block"}
             >
+
               <Button
                 variant="ghost"
                 onClick={async () => {
@@ -156,6 +175,7 @@ export function MultimodalInput({
           "min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl !text-base bg-muted",
           className,
         )}
+        
         rows={3}
         autoFocus
         onKeyDown={(event) => {
@@ -170,6 +190,24 @@ export function MultimodalInput({
           }
         }}
       />
+      
+      <input
+        ref = {fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileSelect}
+        accept="image/*,.pdf,.doc,.docx,.txt,.csv"
+      />
+      <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute bottom-2 left-2 h-8 w-8 rounded-full"
+          onClick={triggerFileSelect}
+          disabled={isLoading}
+        >
+          <AttachmentIcon />
+        </Button>
 
       {isLoading ? (
         <Button

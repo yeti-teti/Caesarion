@@ -45,14 +45,6 @@ const data = {
           title: "History",
           url: "#",
         },
-        {
-          title: "Starred",
-          url: "#",
-        },
-        {
-          title: "Settings",
-          url: "#",
-        },
       ],
     },
   ],
