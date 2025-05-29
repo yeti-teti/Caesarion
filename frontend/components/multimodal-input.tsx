@@ -206,7 +206,7 @@ export function MultimodalInput({
           onClick={triggerFileSelect}
           disabled={isLoading}
         >
-          <AttachmentIcon />
+          <PaperclipIcon />
         </Button>
 
       {isLoading ? (
@@ -232,6 +232,7 @@ export function MultimodalInput({
           <ArrowUpIcon size={14} />
         </Button>
       )}
+      
     </div>
   );
 }
