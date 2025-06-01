@@ -9,6 +9,8 @@ import { PreviewAttachment } from "./preview-attachment";
 import { cn } from "@/lib/utils";
 import { Weather } from "./weather";
 
+import { CodeCell } from "./jupyter/CodeCell";
+
 export const PreviewMessage = ({
   message,
 }: {
@@ -35,7 +37,7 @@ export const PreviewMessage = ({
         )}
 
         <div className="flex flex-col gap-2 w-full">
-          {message.content && (
+          {message.content && !message.toolInvocations?.some(t => t.toolName === "python_interpreter") && (
             <div className="flex flex-col gap-4">
               <Markdown>{message.content as string}</Markdown>
             </div>
@@ -49,12 +51,26 @@ export const PreviewMessage = ({
                 if (state === "result") {
                   const { result } = toolInvocation;
 
+                  // Debug logging
+                  if (toolName === "python_interpreter") {
+                    console.log("Python interpreter result:", result);
+                    console.log("Tool args:", toolInvocation.args);
+                  }
+
                   return (
                     <div key={toolCallId}>
                       {toolName === "get_current_weather" ? (
                         <Weather weatherAtLocation={result} />
+                      ) : toolName === "python_interpreter" ? (
+                        <CodeCell
+                          code={result.code || toolInvocation.args?.code || ""}
+                          outputs={result.outputs || []}
+                          executionCount={1}
+                        />
                       ) : (
-                        <pre>{JSON.stringify(result, null, 2)}</pre>
+                        <pre className="bg-gray-50 p-3 rounded-md text-sm overflow-x-auto">
+                          {JSON.stringify(result, null, 2)}
+                        </pre>
                       )}
                     </div>
                   );
@@ -63,13 +79,18 @@ export const PreviewMessage = ({
                   <div
                     key={toolCallId}
                     className={cn({
-                      skeleton: ["get_current_weather"].includes(toolName),
+                      skeleton: ["get_current_weather", "python_interpreter"].includes(toolName),
                     })}
                   >
-                    {toolName === "get_current_weather" ? <Weather /> : null}
+                    {toolName === "get_current_weather" ? <Weather /> : 
+                     toolName === "python_interpreter" ? (
+                       <div className="animate-pulse bg-gray-200 h-32 rounded-md" />
+                     ) : null}
                   </div>
                 );
               })}
+
+              
             </div>
           )}
 

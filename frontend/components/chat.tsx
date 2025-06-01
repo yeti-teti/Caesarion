@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { PreviewMessage, ThinkingMessage } from "@/components/message";
 import { MultimodalInput } from "@/components/multimodal-input";
 import { Overview } from "@/components/overview";
@@ -10,6 +12,16 @@ import { toast } from "sonner";
 
 export function Chat() {
   const chatId = "001";
+
+  const [sessionId] = useState(() => {
+    let id = localStorage.getItem('session_id');
+    if(!id){
+      id = crypto.randomUUID();
+      localStorage.setItem('session_id', id);
+    }
+
+    return id;
+  });
 
   const {
     messages,
@@ -22,6 +34,9 @@ export function Chat() {
     stop,
   } = useChat({
     maxSteps: 4,
+    body: {
+      session_id: sessionId
+    },
     onError: (error) => {
       if (error.message.includes("Too many requests")) {
         toast.error(
@@ -31,8 +46,7 @@ export function Chat() {
     },
   });
 
-  const [messagesContainerRef, messagesEndRef] =
-    useScrollToBottom<HTMLDivElement>();
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
   return (
     <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background">
