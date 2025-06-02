@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api
-  namespace: backend
+  namespace: app
   labels: 
     app: api
     role: api
@@ -24,3 +24,10 @@ spec:
           env:
           - name: PORT
             value: "8000"
+          - name: IS_SANDBOX
+            value: "false"
+          - name: OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: api-secrets
+                key: openai-api-key
