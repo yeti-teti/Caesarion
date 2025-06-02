@@ -5,18 +5,16 @@ import time
 import docker
 import httpx
 import uuid
-import sys
-import traceback
-from io import StringIO
+import tarfile
+import tempfile
+
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from openai import OpenAI
-
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi import FastAPI, HTTPException, APIRouter, UploadFile, File
 from fastapi.responses import StreamingResponse
+from jupyter_client.manager import AsyncKernelManager
 
 load_dotenv(".env.local")
 
@@ -31,7 +29,7 @@ CHECK_INTERVAL = 3600
 client_container = None
 if not os.environ.get("IS_SANDBOX"):
     client_container = docker.from_env()
-hx = httpx.AsyncClient()
+hx = httpx.AsyncClient(timeout=10000.0)
 last_active = {}
 
 async def terminate_idle_sandboxes():
@@ -111,6 +109,9 @@ async def create_sandbox(request: CreateSandboxRequest):
             stdin_open=False,
             tty=False,
             ports={f"{SANDBOX_PORT}/tcp": 0},  # Auto-assign a port
+            # volumes={
+            #     '/path/to/host/data': {'bind': '/app/data', 'mode': 'rw'}
+            # }, 
             # network="sandbox-network"
             environment={"IS_SANDBOX": "1"}
         )
@@ -194,40 +195,81 @@ async def execute_code(sandbox_id: str, request: ExecuteRequest):
     except Exception as e:
         raise e
 
+
+async def execute_code_inside(code: str):
+    km = AsyncKernelManager()
+    await km.start_kernel()
+    kc = km.client()
+    kc.start_channels()
+    await kc.wait_for_ready()
+
+    msg_id = kc.execute(code)
+
+    async def stream_results():
+        outputs = []
+        try:
+            while True:
+                reply = await kc.get_iopub_msg()
+                msg_type = reply["msg_type"]
+                
+                if msg_type == 'stream':
+                    outputs.append({
+                        "output_type": "stream",
+                        "name": reply['content']['name'],  # stdout or stderr
+                        "text": reply['content']['text']
+                    })
+                    yield json.dumps(outputs[-1]) + "\n"
+                    
+                elif msg_type == 'display_data':
+                    data = reply['content']['data']
+                    output = {
+                        "output_type": "display_data",
+                        "data": data,
+                        "metadata": reply['content'].get('metadata', {})
+                    }
+                    outputs.append(output)
+                    yield json.dumps(output) + "\n"
+                    
+                elif msg_type == 'execute_result':
+                    data = reply['content']['data']
+                    output = {
+                        "output_type": "execute_result",
+                        "execution_count": reply['content']['execution_count'],
+                        "data": data,
+                        "metadata": reply['content'].get('metadata', {})
+                    }
+                    outputs.append(output)
+                    yield json.dumps(output) + "\n"
+                    
+                elif msg_type == "error":
+                    output = {
+                        "output_type": "error",
+                        "ename": reply['content']['ename'],
+                        "evalue": reply['content']['evalue'],
+                        "traceback": reply['content']['traceback']
+                    }
+                    outputs.append(output)
+                    yield json.dumps(output) + "\n"
+                    break
+                    
+                elif msg_type == "status" and reply["content"]["execution_state"] == "idle":
+                    break
+        except asyncio.CancelledError:
+            pass
+        finally:
+            kc.stop_channels()
+            await km.shutdown_kernel()
+
+    return StreamingResponse(stream_results(), media_type="application/x-ndjson")
+
 @router.post("/execute")
 async def execute_code_in_sandbox(request: ExecuteRequest):
     """Execute Python code in this sandbox container"""
-    async def stream_execution():
-        try:
-            # Capture stdout
-            old_stdout = sys.stdout
-            sys.stdout = captured_output = StringIO()
-            
-            # Execute the code
-            exec(request.code)
-            
-            # Get the output
-            output = captured_output.getvalue()
-            sys.stdout = old_stdout
-            
-            # Stream the result
-            result = {
-                "type": "stdout",
-                "content": output,
-                "error": None
-            }
-            yield f"data: {json.dumps(result)}\n\n"
-            
-        except Exception as e:
-            sys.stdout = old_stdout
-            error_result = {
-                "type": "error", 
-                "content": str(e),
-                "traceback": traceback.format_exc()
-            }
-            yield f"data: {json.dumps(error_result)}\n\n"
+    if not request.code.strip():
+        raise HTTPException(status_code=400, detail="Missing 'code' field")
     
-    return StreamingResponse(stream_execution(), media_type="text/plain")
+    return await execute_code_inside(request.code)
+
 
 @router.delete("/sandboxes/{sandbox_id}")
 async def delete_sandbox(sandbox_id: str):
@@ -240,5 +282,61 @@ async def delete_sandbox(sandbox_id: str):
         container.remove()
         last_active.pop(sandbox_id, None)
         return {"message": f"Sandbox {sandbox_id} deleted"}
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+
+@router.post("/sandboxes/{sandbox_id}/upload")
+async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
+
+    try: 
+        container = client_container.containers.get(sandbox_id)
+        if "sbx" not in container.labels:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        
+        file_content = await file.read()
+
+        # Temp Tar file
+        with tempfile.NamedTemporaryFile(suffix='.tar') as tar_file:
+            with tarfile.open(tar_file.name, 'w') as tar:
+
+                tarinfo = tarfile.TarInfo(name=file.filename)
+                tarinfo.size = len(file_content)
+
+                import io
+                tar.addfile(tarinfo, io.BytesIO(file_content))
+            
+            with open(tar_file.name, 'rb') as tar_data:
+                container.put_archive('/app', tar_data)
+        
+        last_active[sandbox_id] = time.time()
+        
+        return {
+            "message": f"File '{file.filename}' uploaded to sandbox",
+            "filename": file.filename,
+            "size": len(file_content),
+            "path": f"/app/{file.filename}"
+        }
+    
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail="Sandbox not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@router.get("/sandboxes/{sandbox_id}/files")
+async def list_sandbox_files(sandbox_id: str):
+    """List files in the sandbox container"""
+    try:
+        container = client_container.containers.get(sandbox_id)
+        if "sbx" not in container.labels:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        
+        result = container.exec_run("ls -la /app", user="jovyan")
+        if result.exit_code == 0:
+            files_output = result.output.decode('utf-8')
+            return {"files": files_output}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to list files")
+            
     except docker.errors.NotFound:
         raise HTTPException(status_code=404, detail="Sandbox not found")

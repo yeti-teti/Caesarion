@@ -46,7 +46,7 @@ export default function RootLayout({
       <head></head>
       <body className={cn(GeistSans.className, "antialiased dark")}>
 
-      <SidebarProvider>
+      {/* <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2">
@@ -59,7 +59,12 @@ export default function RootLayout({
           </header>
           {children}
         </SidebarInset>
-      </SidebarProvider>
+      </SidebarProvider> */}
+      
+      <header className="flex h-16 shrink-0 items-center gap-2">
+        <Navbar />
+      </header>
+      {children}
       </body>
     </html>
   );

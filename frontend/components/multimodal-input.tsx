@@ -28,7 +28,7 @@ const suggestedActions = [
   },
   {
     title: "Write and execute code",
-    label: "for AI engineers?",
+    label: "Factorial of 5",
     action: "Code to calculate factorial of 5",
   },
 ];
@@ -117,15 +117,45 @@ export function MultimodalInput({
     }
   }, [handleSubmit, setLocalStorageInput, width]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
 
     if(files && files.length > 0){
       const file = files[0];
       console.log("Selected file:", file);
 
-      // File upload logic
+      const sessionId = localStorage.getItem('session_id');
+
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+
+        // const response = await fetch('/api/upload', {
+        //   method: 'POST',
+        //   body: formData,
+        // });
+        const response = await fetch(`/api/sandboxes/upload?session_id=${sessionId}`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          toast.success(`File "${result.filename}" uploaded successfully!`);
+          
+          // Automatically mention the file in the chat
+          setInput(prev => `${prev}${prev ? '\n' : ''}I've uploaded ${result.filename}. Please analyze this data.`); 
+        } else {
+          toast.error('File upload failed');
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast.error('Upload failed');
+      }
     }
+
   };
 
   const triggerFileSelect = () =>{
