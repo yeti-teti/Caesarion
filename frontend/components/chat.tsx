@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { PreviewMessage, ThinkingMessage } from "@/components/message";
 import { MultimodalInput } from "@/components/multimodal-input";
@@ -13,15 +13,16 @@ import { toast } from "sonner";
 export function Chat() {
   const chatId = "001";
 
-  const [sessionId] = useState(() => {
+  const [sessionId, setSessionId] = useState<string>("");
+
+  useEffect(() => {
     let id = localStorage.getItem('session_id');
-    if(!id){
+    if (!id) {
       id = crypto.randomUUID();
       localStorage.setItem('session_id', id);
     }
-
-    return id;
-  });
+    setSessionId(id);
+  }, []);
 
   const {
     messages,
@@ -47,6 +48,14 @@ export function Chat() {
   });
 
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+
+  if (!sessionId) {
+    return (
+      <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background">
