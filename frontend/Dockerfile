@@ -48,14 +48,16 @@ WORKDIR /app
 
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-COPY package*.json ./
+RUN npm install -g pnpm
 
-RUN npm ci --silent --no-audit --no-fund
+COPY package*.json pnpm-lock.yaml ./
+
+RUN pnpm install --frozen-lockfile --silent
 
 COPY . .
 
-RUN npm run build
+RUN pnpm build
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]
