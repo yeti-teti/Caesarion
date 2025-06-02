@@ -59,8 +59,6 @@ RUN pnpm install --frozen-lockfile --silent --ignore-scripts --no-optional
 
 COPY . .
 
-RUN cat tsconfig.json.original | jq '.compilerOptions.skipLibCheck = true | .compilerOptions.noEmit = true | .compilerOptions.strict = false | .compilerOptions.noUnusedLocals = false | .compilerOptions.noUnusedParameters = false' > tsconfig.json
-
 RUN pnpm build
 
 EXPOSE 3000
