@@ -42,11 +42,10 @@
 
 # CMD ["pnpm", "start"]
 
-FROM node:18-alpine
+FROM node:lts-alpine
 
 WORKDIR /app
 
-ENV NODE_OPTIONS="--max-old-space-size=1536"
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_TYPESCRIPT_IGNOREBUILDTYPES=true
 ENV CI=true
