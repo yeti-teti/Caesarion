@@ -59,7 +59,11 @@ RUN pnpm install --frozen-lockfile --silent --ignore-scripts --no-optional
 
 COPY . .
 
+RUN mv tsconfig.json tsconfig.json.bak || true
+
 RUN pnpm build
+
+RUN mv tsconfig.json.bak tsconfig.json || true
 
 EXPOSE 3000
 
