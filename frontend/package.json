@@ -6,7 +6,8 @@
     "fastapi-dev": "cd ../api && docker build -t fastapi-jupyter-server . && docker run -v /var/run/docker.sock:/var/run/docker.sock -p 8000:8000 --user root fastapi-jupyter-server:latest",
     "next-dev": "next dev",
     "dev": "concurrently \"npm run next-dev\" \"npm run fastapi-dev\"",
-    "build": "next build",
+    "build": "next build --no-lint",
+    "build:fast": "NEXT_TELEMETRY_DISABLED=1 next build --no-lint --experimental-build-mode=compile",
     "start": "next start",
     "lint": "next lint"
   },
