@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: front
+  namespace: frontend
+  labels: 
+    app: front
+    role: front
+spec:
+  selector:
+    matchLabels:
+      app: front
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: front
+    spec:
+      containers:
+        - name: frontend
+          image: your-registry/janus-frontend:latest
+          ports:
+          - containerPort: 3000
+          env:
+          - name: PORT
+            value: "3000"

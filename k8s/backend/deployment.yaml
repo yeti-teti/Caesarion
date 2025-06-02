@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: backend
+  labels: 
+    app: api
+    role: api
+spec:
+  selector:
+    matchLabels:
+      app: api
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: your-registry/caesation:latest
+          ports:
+          - containerPort: 8000
+          env:
+          - name: PORT
+            value: "8000"
