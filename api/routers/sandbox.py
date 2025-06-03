@@ -503,32 +503,47 @@ async def delete_sandbox(sandbox_id: str):
 
 @router.post("/sandboxes/{sandbox_id}/upload")
 async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
+
+    print(f"Uploading to {sandbox_id}, file={file.filename}")
+
     if k8s_v1 is None:
         raise HTTPException(status_code=500, detail="Kubernetes client not available")
 
     try: 
+        print(f"Pod info readign: {sandbox_id}")
         pod = k8s_v1.read_namespaced_pod(
             name=sandbox_id, 
             namespace=get_namespace()
         )
+        print(f"Pod found, labels={pod.metadata.labels}")
+        
         if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
+    
+        print(f"Pod phase={pod.status.phase}")
         
         if pod.status.phase != "Running":
+            print(f"Pod not running")
             raise HTTPException(status_code=503, detail="Sandbox not ready")
         
+        print(f"Reading file content")
         file_content = await file.read()
+        print(f'File size={len(file_content)} bytes')
         
         # base64 encoded content for kubectl exec
+        print(f"Encoding file")
         encoded_content = base64.b64encode(file_content).decode('utf-8')
+        print("Encoded")
         
         # kubectl exec to write file
         exec_command = [
             'sh', '-c', 
             f'echo "{encoded_content}" | base64 -d > /app/{file.filename}'
         ]
+        print(f"Executing command")
         
         try:
+            print("Starting kubectl exec")
             resp = stream(
                 k8s_v1.connect_get_namespaced_pod_exec,
                 sandbox_id,
@@ -539,6 +554,8 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
                 stdout=True,
                 tty=False
             )
+            print("Kubectl exec finish")
+            print(f"Response: {resp}")
             
             last_active[sandbox_id] = time.time()
             
