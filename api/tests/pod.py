@@ -84,10 +84,11 @@
 #             'labels': {
 #                 'app': 'sandbox',
 # "   traceback.print_exc())reation operations work correctly')100m'}459000-g5/backend/backend-api:13',
-# ✓ Kubernetes client initialized
-# ✓ Can list pods in app namespace: 2 pods found
-# ✓ Can list services in app namespace: 2 services found
-# ✓ Pod creation dry-run successful
-# ✓ Service creation dry-run successful
-# ✓ All sandbox creation operations work correctly
-# saugatmalla@exalted-crane-459000-g5-bastion-vm-gke:~$ 
+
+
+# kubectl exec -it <api-pod-name> -n app -- python -c "
+# import sys
+# sys.path.append('/app')
+# from utils.tools import session_containers
+# print('Session containers:', session_containers)
+# "

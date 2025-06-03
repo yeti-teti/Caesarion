@@ -34,7 +34,6 @@ def get_current_weather(latitude, longitude):
 
 session_containers = {}
 
-
 def get_sandbox_base_url():
 
     if os.environ.get("IS_SANDBOX"):
@@ -53,6 +52,9 @@ def get_sandbox_base_url():
 
 
 async def python_interpreter(code, session_id=None):
+
+    print(f'Using Interpreter: {session_id}')
+    print(f"Num containers: {session_containers}")
     
     if not session_id:
         return {
@@ -68,11 +70,12 @@ async def python_interpreter(code, session_id=None):
 
     try:
         base_url = get_sandbox_base_url()
+        print(f"Base Url: {base_url}")
         async with httpx.AsyncClient(timeout=10000.0) as client:
             
             # Checking container for this session
             if session_id not in session_containers:
-
+                print(f"New Session ID: {session_id}")
                 # Create Container
                 sandbox_response = await client.post(
                     f"{base_url}/sandboxes",
@@ -88,6 +91,7 @@ async def python_interpreter(code, session_id=None):
                 await asyncio.sleep(2)
 
             sandbox_id = session_containers[session_id]
+            print(f"Executing in sandbox: {sandbox_id}")
 
             if not sandbox_id:
                 return {"error": "Failed to create sandbox"}
