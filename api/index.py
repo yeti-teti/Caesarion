@@ -220,6 +220,10 @@ async def upload_file_by_session(
     file: UploadFile = File(...),
     session_id: str = Query(...)
 ):
+    print(f"Session id: {session_id}")
+    print(f"session_containers: {session_containers}")
+    print(f"File name:{file.filename}")
+
     if session_id not in session_containers:
         raise HTTPException(status_code=404, detail="No active sandbox for this session")
     
