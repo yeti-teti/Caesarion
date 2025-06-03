@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: us-central1-docker.pkg.dev/exalted-crane-459000-g5/frontend/frontend-app:28
+          image: us-central1-docker.pkg.dev/exalted-crane-459000-g5/frontend/frontend-app:29
           ports:
           - containerPort: 3000
           env:
