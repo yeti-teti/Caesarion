@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: ManagedCertificate
+metadata:
+  name: gke-certificate
+  namespace: app
+spec:
+  domains:
+    - augustus.work
+    - www.augustus.work
