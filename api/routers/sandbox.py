@@ -168,14 +168,19 @@ async def get_sandboxes():
 
 @router.post("/sandboxes")
 async def create_sandbox(request: CreateSandboxRequest):
+
+    print(f"Starting sandbox: {request.lang}")
+
     if request.lang.lower() != "python":
         raise HTTPException(status_code=400, detail="Only Python sandboxes are supported.")
 
     if k8s_v1 is None:
+        print("k8s client None")
         raise HTTPException(status_code=500, detail="Kubernetes client not available")
 
     pod_name = f"{SANDBOX_PREFIX}{str(uuid.uuid4())[:8]}"
     namespace = get_namespace()
+    print(f"Creating sandbox with name: {pod_name} in namespace: {namespace}")
     
     pod_manifest = {
         "apiVersion": "v1",
@@ -253,12 +258,14 @@ async def create_sandbox(request: CreateSandboxRequest):
     }
     
     try:
+        print("Creating pod")
         # Create pod
         pod = k8s_v1.create_namespaced_pod(
             namespace=namespace, 
             body=pod_manifest
         )
         
+        print("Creating service")
         # Create service  
         service = k8s_v1.create_namespaced_service(
             namespace=namespace,
