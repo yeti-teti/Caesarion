@@ -26,7 +26,7 @@ load_dotenv(".env.local")
 # Configuration
 IMAGE_NAME = os.environ.get(
     "SANDBOX_IMAGE", 
-    "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:11"
+    "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:16"
 )
 SANDBOX_PREFIX = "sandbox-"
 SANDBOX_PORT = 8000
@@ -38,13 +38,18 @@ k8s_v1 = None
 k8s_apps = None
 
 if not os.environ.get("IS_SANDBOX"):
+    print(f"IS_SANDBOX = {os.environ.get('IS_SANDBOX')}")
+
+    config_loaded = False
     try:
         config.load_incluster_config()
         config_loaded = True
+        print("Loaded cluster config")
     except config.ConfigException:
         try:
             config.load_kube_config()
             config_loaded = True
+            print("Loaded kube config")
         except config.ConfigException:
             print("NO config")
     
