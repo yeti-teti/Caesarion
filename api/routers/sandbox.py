@@ -256,6 +256,9 @@ async def create_sandbox(request: CreateSandboxRequest):
             "type": "ClusterIP"
         }
     }
+
+    print(f"Image: {IMAGE_NAME}")
+    print(f"Pod: {pod_name}")
     
     try:
         print("Creating pod")
@@ -264,6 +267,7 @@ async def create_sandbox(request: CreateSandboxRequest):
             namespace=namespace, 
             body=pod_manifest
         )
+        print(f"Pod created: {pod.metadata.name}")
         
         print("Creating service")
         # Create service  
@@ -271,8 +275,10 @@ async def create_sandbox(request: CreateSandboxRequest):
             namespace=namespace,
             body=service_manifest
         )
+        print(f"Service created: {service.metadata.name}")
         
         last_active[pod.metadata.name] = time.time()
+        print("Sandbox creation completed successfully")
         
         return {
             "id": pod.metadata.name, 
@@ -280,6 +286,20 @@ async def create_sandbox(request: CreateSandboxRequest):
             "status": "creating"
         }
     except Exception as e:
+        print(f"Sandbox cration error: {str(e)}")
+        print(f"Error: {type(e)}")
+
+        if hasattr(e, 'body'):
+            print(f"ERROR: API response body: {e.body}")
+        if hasattr(e, 'status'):
+            print(f"ERROR: HTTP status: {e.status}")
+        if hasattr(e, 'reason'):
+            print(f"ERROR: Reason: {e.reason}")
+
+        import traceback
+        print("Full traceback")
+        traceback.print_exc()
+
         try:
             await cleanup_sandbox_resources(pod_name)
         except:
