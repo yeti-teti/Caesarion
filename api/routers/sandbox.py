@@ -529,45 +529,30 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
         file_content = await file.read()
         print(f'File size={len(file_content)} bytes')
         
-        # base64 encoded content for kubectl exec
-        print(f"Encoding file")
-        encoded_content = base64.b64encode(file_content).decode('utf-8')
-        print("Encoded")
-        
-        # kubectl exec to write file
-        exec_command = [
-            'sh', '-c', 
-            f'echo "{encoded_content}" | base64 -d > /app/{file.filename}'
-        ]
-        print(f"Executing command")
-        
         try:
-            print("Starting kubectl exec")
-            resp = stream(
-                k8s_v1.connect_get_namespaced_pod_exec,
-                sandbox_id,
-                get_namespace(),
-                command=exec_command,
-                stderr=True,
-                stdin=True,
-                stdout=True,
-                tty=False,
-                _preload_content=False
-            )
-
-            # Write the base64 content to stdin to get rid of terminal error
-            print(f"Writing {len(encoded_content)} chars to stdin")
-            resp.write_stdin(encoded_content.encode('utf-8'))
-            resp.write_stdin(b'\n')
-            resp.close()
+            print("Starting file upload using simple approach")
             
-            # Read any output/errors
-            stdout_output = resp.read_stdout()
-            stderr_output = resp.read_stderr()
+            # For text files
+            if file.filename.endswith(('.csv', '.txt', '.py', '.json', '.md')):
+                exec_command = ['sh', '-c', f'cat > /app/{file.filename}']
+                
+                resp = stream(
+                    k8s_v1.connect_get_namespaced_pod_exec,
+                    sandbox_id,
+                    get_namespace(),
+                    command=exec_command,
+                    stderr=True,
+                    stdin=True,
+                    stdout=True,
+                    tty=False,
+                    _preload_content=False
+                )
+                
+                # Write file content directly
+                resp.write_stdin(file_content)
+                resp.close()
             
-            print(f"Command stdout: {stdout_output}")
-            print(f"Command stderr: {stderr_output}")
-            print("Kubectl exec finish")
+            print("File written successfully")
             
             last_active[sandbox_id] = time.time()
             
