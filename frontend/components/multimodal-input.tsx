@@ -119,6 +119,7 @@ export function MultimodalInput({
   }, [handleSubmit, setLocalStorageInput, width]);
 
   const { isUploading, uploadProgress, uploadFile } = useFileUpload();
+  const [uploadedFile, setUploadedFile] = useState<{name: string, uploadedAt: Date} | null>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -132,6 +133,16 @@ export function MultimodalInput({
       try {
         const result = await uploadFile(file, sessionId);
         console.log('Upload successful:', result);
+
+        setUploadedFile({
+          name: file.name, 
+          uploadedAt: new Date()
+        });
+
+        setTimeout(() => {
+          setUploadedFile(null);
+        }, 7000);
+
       } catch (error) {
         console.error('Upload error:', error);
       }
@@ -177,7 +188,7 @@ export function MultimodalInput({
         </div>
       )}
 
-      {/* Upload Progress Indicator - Position above input */}
+      
       {isUploading && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -196,6 +207,33 @@ export function MultimodalInput({
               className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
               style={{ width: `${uploadProgress}%` }}
             />
+          </div>
+        </motion.div>
+      )}
+
+      {uploadedFile && !isUploading && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-green-50 border border-green-200 rounded-lg p-3 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm font-medium text-green-800">
+                File ready for analysis
+              </span>
+            </div>
+            <button
+              onClick={() => setUploadedFile(null)}
+              className="text-green-600 hover:text-green-800 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-green-700">
+            <strong>{uploadedFile.name}</strong> Analyze this file."
           </div>
         </motion.div>
       )}
@@ -234,7 +272,7 @@ export function MultimodalInput({
           }}
         />
         
-        {/* File Upload Button - Left side */}
+        
         <Button
           type="button"
           variant="ghost"
@@ -246,7 +284,7 @@ export function MultimodalInput({
           <PaperclipIcon className={isUploading ? "animate-spin" : ""} size={16} />
         </Button>
 
-        {/* Submit/Stop Button - Right side */}
+        
         {isLoading ? (
           <Button
             variant="ghost"

@@ -1,16 +1,5 @@
 import requests
-import re
-import ast
-
-from fastapi.responses import StreamingResponse
-from jupyter_client.manager import AsyncKernelManager
-
 import json 
-from io import BytesIO, StringIO
-
-import sys
-import traceback
-
 import httpx
 import json
 import asyncio
@@ -39,7 +28,7 @@ def get_sandbox_base_url():
     if os.environ.get("IS_SANDBOX"):
         return "http://localhost:8000"
     
-    # k8s - Use service DNS name for inter-pod communication
+    # service DNS name for inter-pod communication
     if os.environ.get("KUBERNETES_SERVICE_HOST"):
         namespace = os.environ.get("KUBERNETES_NAMESPACE", "app")
         return f"http://api.{namespace}.svc.cluster.local:8000"
@@ -140,3 +129,32 @@ async def python_interpreter(code, session_id=None):
             }],
             "success": False
         }
+
+async def session_pod(session_id:str):
+
+    if not session_id:
+        raise ValueError("Session ID required")
+
+    if session_id in session_containers:
+        return session_containers[session_id]
+
+    try:
+        base_url = get_sandbox_base_url()
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            sandbox_response = await client.post(
+                f"{base_url}/sandboxes",
+                json={"lang": "python"},
+                headers={'Content-Type': 'application/json'}
+            )
+            sandbox_response.raise_for_status()
+
+            sandbox_data = sandbox_response.json()
+            sandbox_id = sandbox_data.get("id")
+            session_containers[session_id] = sandbox_id
+
+            await asyncio.sleep(10)
+
+            return sandbox_id
+    except Exception as e:
+        print(f"Creation failed: {e}")
+        raise e
