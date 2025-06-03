@@ -216,7 +216,8 @@ async def create_sandbox(request: CreateSandboxRequest):
                 "ports": [{"containerPort": SANDBOX_PORT}],
                 "env": [
                     {"name": "IS_SANDBOX", "value": "1"},
-                    {"name": "PORT", "value": str(SANDBOX_PORT)}
+                    {"name": "PORT", "value": str(SANDBOX_PORT)},
+                    {"name": "OPENAI_API_KEY", "value": os.environ.get("OPENAI_API_KEY", "")}
                 ],
                 "resources": {
                     "limits": {"memory": "5Gi", "cpu": "500m"},
