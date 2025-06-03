@@ -554,11 +554,20 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
                 tty=False,
                 _preload_content=False
             )
-            # Write the base64 content to stdin
+
+            # Write the base64 content to stdin to get rid of terminal error
+            print(f"Writing {len(encoded_content)} chars to stdin")
             resp.write_stdin(encoded_content.encode('utf-8'))
+            resp.write_stdin(b'\n')
             resp.close()
+            
+            # Read any output/errors
+            stdout_output = resp.read_stdout()
+            stderr_output = resp.read_stderr()
+            
+            print(f"Command stdout: {stdout_output}")
+            print(f"Command stderr: {stderr_output}")
             print("Kubectl exec finish")
-            print(f"Response: {resp}")
             
             last_active[sandbox_id] = time.time()
             
