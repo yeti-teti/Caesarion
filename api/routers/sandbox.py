@@ -26,7 +26,7 @@ load_dotenv(".env.local")
 # Configuration
 IMAGE_NAME = os.environ.get(
     "SANDBOX_IMAGE", 
-    "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:16"
+    "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:17"
 )
 SANDBOX_PREFIX = "sandbox-"
 SANDBOX_PORT = 8000
@@ -36,6 +36,9 @@ CHECK_INTERVAL = 3600
 # k8s client init
 k8s_v1 = None
 k8s_apps = None
+
+print(f"Sandbox chekc: {os.environ.get('IS_SANDBOX')}")
+print(f"Not sandbox check: {not os.environ.get('IS_SANDBOX')}")
 
 if not os.environ.get("IS_SANDBOX"):
     print(f"IS_SANDBOX = {os.environ.get('IS_SANDBOX')}")
