@@ -529,6 +529,7 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
         file_content = await file.read()
         print(f'File size={len(file_content)} bytes')
         
+        # Fixed STDIN Terminal length issue, this caused bug taht did not allow file upload.
         try:
             print("Starting file upload using simple approach")
             
