@@ -549,10 +549,14 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
                 get_namespace(),
                 command=exec_command,
                 stderr=True,
-                stdin=False,
+                stdin=True,
                 stdout=True,
-                tty=False
+                tty=False,
+                _preload_content=False
             )
+            # Write the base64 content to stdin
+            resp.write_stdin(encoded_content.encode('utf-8'))
+            resp.close()
             print("Kubectl exec finish")
             print(f"Response: {resp}")
             
