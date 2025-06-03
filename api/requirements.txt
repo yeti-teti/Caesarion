@@ -44,3 +44,4 @@ websockets==12.0
 jupyter_client
 matplotlib
 docker
+kubernetes==29.0.0

@@ -16,6 +16,7 @@ spec:
       labels:
         app: api
     spec:
+      serviceAccount: api-service-account
       containers:
         - name: api
           image: us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:11
@@ -26,6 +27,10 @@ spec:
             value: "8000"
           - name: IS_SANDBOX
             value: "false"
+          - name: KUBERNETES_NAMESPACE
+            value: app
+          - name: SANDBOX_IMAGE
+            value: "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:11"
           - name: OPENAI_API_KEY
             valueFrom:
               secretKeyRef:

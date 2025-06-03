@@ -2,11 +2,12 @@ import os
 import json
 import asyncio
 import time
-import docker
 import httpx
 import uuid
 import tarfile
 import tempfile
+import base64
+from io import BytesIO
 
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -16,53 +17,114 @@ from fastapi import FastAPI, HTTPException, APIRouter, UploadFile, File
 from fastapi.responses import StreamingResponse
 from jupyter_client.manager import AsyncKernelManager
 
+from kubernetes import client, config
+import kubernetes.client.exceptions as k8s_exceptions
+from kubernetes.stream import stream
+
 load_dotenv(".env.local")
 
 # Configuration
-IMAGE_NAME = "fastapi-jupyter-server:latest"
-CONTAINER_PREFIX = "sandbox_"
+IMAGE_NAME = os.environ.get(
+    "SANDBOX_IMAGE", 
+    "us-central1-docker.pkg.dev/exalted-crane-459000-g5/backend/backend-api:11"
+)
+SANDBOX_PREFIX = "sandbox-"
 SANDBOX_PORT = 8000
 IDLE_TIMEOUT = 3600
 CHECK_INTERVAL = 3600
 
-# client_container = docker.from_env()
-client_container = None
+# k8s client init
+k8s_v1 = None
+k8s_apps = None
+
 if not os.environ.get("IS_SANDBOX"):
-    client_container = docker.from_env()
+    try:
+        config.load_incluster_config()
+    except config.ConfigException:
+        try:
+            config.load_kube_config()
+        except config.ConfigException:
+            print("NO config")
+    
+    if config:
+        k8s_v1 = client.CoreV1Api()
+        k8s_apps = client.AppsV1Api()
+
 hx = httpx.AsyncClient(timeout=10000.0)
 last_active = {}
 
 async def terminate_idle_sandboxes():
-
-    if client_container is None:
-        return []
+    if k8s_v1 is None:
+        return
 
     while True:
         await asyncio.sleep(CHECK_INTERVAL)
         now = time.time()
 
-        for container in await asyncio.to_thread(list_sandboxes):
-            sandbox_id = container.id
+        for pod in list_sandboxes():
+            sandbox_id = pod.metadata.name
             last_time = last_active.get(sandbox_id, None)
 
             if last_time is None:
-                print(f"Terminating untracked sandbox {sandbox_id} (server restarted?)")
+                print(f"Terminating sandbox {sandbox_id}")
                 try:
-                    container.stop()
-                    container.remove()
-                except docker.errors.NotFound:
+                    await cleanup_sandbox_resources(sandbox_id)
+                except k8s_exceptions.ApiException:
                     pass
                 continue
 
             if now - last_time > IDLE_TIMEOUT:
-                print(f"Terminating idle sandbox {sandbox_id} (idle for {now - last_time:.1f} seconds)")
+                print(f"Terminating sandbox {sandbox_id}")
                 try:
-                    container.stop()
-                    container.remove()
+                    await cleanup_sandbox_resources(sandbox_id)
                     last_active.pop(sandbox_id, None)
-                except docker.errors.NotFound:
+                except k8s_exceptions.ApiException:
                     last_active.pop(sandbox_id, None)
 
+def get_namespace():
+    return os.environ.get("KUBERNETES_NAMESPACE", "app")
+
+async def cleanup_sandbox_resources(sandbox_id: str):
+    namespace = get_namespace()
+    
+    try:
+        k8s_v1.delete_namespaced_service(
+            name=f"{sandbox_id}-service",
+            namespace=namespace
+        )
+    except k8s_exceptions.ApiException:
+        pass
+
+    try:
+        k8s_v1.delete_namespaced_pod(
+            name=sandbox_id,
+            namespace=namespace
+        )
+    except k8s_exceptions.ApiException:
+        pass
+
+async def wait_for_pod_ready(pod_name: str, namespace: str, timeout: int = 300):
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            pod = k8s_v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            
+            if pod.status.phase == "Running":
+
+                if pod.status.container_statuses:
+                    all_ready = all(
+                        container.ready for container in pod.status.container_statuses
+                    )
+                    if all_ready and pod.status.pod_ip:
+                        return pod
+            
+            await asyncio.sleep(2)
+            
+        except k8s_exceptions.ApiException:
+            await asyncio.sleep(2)
+    
+    raise HTTPException(status_code=504, detail="Pod startup timeout")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -78,15 +140,29 @@ class ExecuteRequest(BaseModel):
     code: str
 
 def list_sandboxes():
-    if client_container is None:
+
+    if k8s_v1 is None:
         return []
-    return client_container.containers.list(filters={"label": "sbx=1"})
+    
+    try:
+        pods = k8s_v1.list_namespaced_pod(
+            namespace=get_namespace(),
+            label_selector="app=sandbox,sbx=1"
+        )
+        return pods.items
+    except Exception:
+        return []
 
 @router.get("/sandboxes")
 async def get_sandboxes():
     sandboxes = [
-        {"id": container.id, "name": container.name, "status": container.status}
-        for container in list_sandboxes()
+        {
+            "id": pod.metadata.name, 
+            "name": pod.metadata.name, 
+            "status": pod.status.phase,
+            "ready": pod.status.container_statuses[0].ready if pod.status.container_statuses else False
+        }
+        for pod in list_sandboxes()
     ]
     return {"sandboxes": sandboxes}
 
@@ -95,81 +171,169 @@ async def create_sandbox(request: CreateSandboxRequest):
     if request.lang.lower() != "python":
         raise HTTPException(status_code=400, detail="Only Python sandboxes are supported.")
 
-    container_name = CONTAINER_PREFIX + str(uuid.uuid4())[:8]
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
+
+    pod_name = f"{SANDBOX_PREFIX}{str(uuid.uuid4())[:8]}"
+    namespace = get_namespace()
+    
+    pod_manifest = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": pod_name,
+            "namespace": namespace,
+            "labels": {
+                "app": "sandbox",
+                "sbx": "1",
+                "sbx_lang": request.lang.lower(),
+                "pod-name": pod_name
+            }
+        },
+        "spec": {
+            "containers": [{
+                "name": "jupyter-sandbox",
+                "image": IMAGE_NAME,
+                "ports": [{"containerPort": SANDBOX_PORT}],
+                "env": [
+                    {"name": "IS_SANDBOX", "value": "1"},
+                    {"name": "PORT", "value": str(SANDBOX_PORT)}
+                ],
+                "resources": {
+                    "limits": {"memory": "5Gi", "cpu": "500m"},
+                    "requests": {"memory": "1024Mi", "cpu": "100m"}
+                },
+                "readinessProbe": {
+                    "httpGet": {
+                        "path": "/health",
+                        "port": SANDBOX_PORT
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 3,
+                    "timeoutSeconds": 5
+                },
+                "livenessProbe": {
+                    "httpGet": {
+                        "path": "/health", 
+                        "port": SANDBOX_PORT
+                    },
+                    "initialDelaySeconds": 15,
+                    "periodSeconds": 10,
+                    "timeoutSeconds": 5
+                }
+            }],
+            "restartPolicy": "Never"
+        }
+    }
+    
+    service_manifest = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+            "name": f"{pod_name}-service",
+            "namespace": namespace,
+            "labels": {
+                "app": "sandbox",
+                "sbx": "1"
+            }
+        },
+        "spec": {
+            "selector": {
+                "app": "sandbox",
+                "sbx": "1",
+                "pod-name": pod_name
+            },
+            "ports": [{
+                "port": SANDBOX_PORT,
+                "targetPort": SANDBOX_PORT,
+                "protocol": "TCP"
+            }],
+            "type": "ClusterIP"
+        }
+    }
     
     try:
-        container = client_container.containers.run(
-            IMAGE_NAME,
-            name=container_name,
-            labels={
-                "sbx": "1",
-                "sbx_lang": request.lang.lower()
-            },
-            detach=True,
-            stdin_open=False,
-            tty=False,
-            ports={f"{SANDBOX_PORT}/tcp": 0},  # Auto-assign a port
-            # volumes={
-            #     '/path/to/host/data': {'bind': '/app/data', 'mode': 'rw'}
-            # }, 
-            # network="sandbox-network"
-            environment={"IS_SANDBOX": "1"}
+        # Create pod
+        pod = k8s_v1.create_namespaced_pod(
+            namespace=namespace, 
+            body=pod_manifest
         )
-        last_active[container.id] = time.time()
-        return {"id": container.id, "name": container.name, "status": container.status}
+        
+        # Create service  
+        service = k8s_v1.create_namespaced_service(
+            namespace=namespace,
+            body=service_manifest
+        )
+        
+        last_active[pod.metadata.name] = time.time()
+        
+        return {
+            "id": pod.metadata.name, 
+            "name": pod.metadata.name, 
+            "status": "creating"
+        }
     except Exception as e:
+        try:
+            await cleanup_sandbox_resources(pod_name)
+        except:
+            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/sandboxes/{sandbox_id}")
 async def get_sandbox(sandbox_id: str):
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
+        
     try:
-        container = client_container.containers.get(sandbox_id)
-        if "sbx" not in container.labels:
+        pod = k8s_v1.read_namespaced_pod(
+            name=sandbox_id, 
+            namespace=get_namespace()
+        )
+        
+        if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
- 
-        ports = container.attrs["NetworkSettings"]["Ports"]
-        port_mapping = ports.get(f"{SANDBOX_PORT}/tcp", [])
-        if not port_mapping:
-            raise HTTPException(status_code=500, detail="No exposed port found")
-
-        host_port = port_mapping[0]["HostPort"]
 
         return {
-            "id": container.id,
-            "name": container.name,
-            "status": container.status,
-            "port": host_port,
+            "id": pod.metadata.name,
+            "name": pod.metadata.name,
+            "status": pod.status.phase,
+            "ip": pod.status.pod_ip,
+            "ready": pod.status.container_statuses[0].ready if pod.status.container_statuses else False
         }
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Sandbox not found")
+    except k8s_exceptions.ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/sandboxes/{sandbox_id}/execute")
 async def execute_code(sandbox_id: str, request: ExecuteRequest):
     if not request.code.strip():
         raise HTTPException(status_code=400, detail="Code cannot be empty.")
+    
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
+    
     try:
-        container = client_container.containers.get(sandbox_id)
-        if "sbx" not in container.labels:
+        pod = k8s_v1.read_namespaced_pod(
+            name=sandbox_id, 
+            namespace=get_namespace()
+        )
+        
+        if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
 
-        ports = container.attrs["NetworkSettings"]["Ports"]
-        port_mapping = ports.get(f"{SANDBOX_PORT}/tcp", [])
-        if not port_mapping:
-            raise HTTPException(status_code=500, detail="No exposed port found")
+        if pod.status.phase != "Running":
+            pod = await wait_for_pod_ready(sandbox_id, get_namespace())
 
-        host_port = port_mapping[0]["HostPort"]
-        # sandbox_url = f"http://localhost:{host_port}/execute"
-        sandbox_url = f"http://host.docker.internal:{host_port}/execute"
+        # Use service DNS name for networking
+        namespace = get_namespace()
+        service_url = f"http://{sandbox_id}-service.{namespace}.svc.cluster.local:{SANDBOX_PORT}/execute"
         
-        # With Docker Network  
-        # sandbox_container_name = container.name
-        # sandbox_url = f"http://{sandbox_container_name}:{SANDBOX_PORT}/execute"
-        
-        print(f"Attempting to connect to sandbox: {sandbox_url}")  # Debug logging
+        print(f"Executing code in sandbox: {service_url}")
         
         async def stream_response():
             try:
-                async with hx.stream("POST", sandbox_url, json=request.dict()) as response:
+                async with hx.stream("POST", service_url, json=request.dict()) as response:
                     if not response.is_success:
                         raise HTTPException(status_code=response.status_code, detail=f"Execution failed with status {response.status_code}")
                     async for chunk in response.aiter_bytes():
@@ -177,7 +341,7 @@ async def execute_code(sandbox_id: str, request: ExecuteRequest):
                         last_active[sandbox_id] = time.time()
             except httpx.ConnectError as e:
                 print(f"Connection error to sandbox {sandbox_id}: {e}")
-                raise HTTPException(status_code=503, detail=f"Cannot connect to sandbox - container may not be ready: {str(e)}")
+                raise HTTPException(status_code=503, detail=f"Cannot connect to sandbox: {str(e)}")
             except httpx.TimeoutException as e:
                 print(f"Timeout error to sandbox {sandbox_id}: {e}")
                 raise HTTPException(status_code=504, detail="Sandbox request timed out")
@@ -190,11 +354,10 @@ async def execute_code(sandbox_id: str, request: ExecuteRequest):
         
         return StreamingResponse(stream_response(), media_type="application/x-ndjson")
     
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Sandbox not found")
-    except Exception as e:
-        raise e
-
+    except k8s_exceptions.ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def execute_code_inside(code: str):
     km = AsyncKernelManager()
@@ -270,73 +433,122 @@ async def execute_code_in_sandbox(request: ExecuteRequest):
     
     return await execute_code_inside(request.code)
 
+@router.post("/health")
+@router.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": time.time()}
 
 @router.delete("/sandboxes/{sandbox_id}")
 async def delete_sandbox(sandbox_id: str):
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
+        
     try:
-        container = client_container.containers.get(sandbox_id)
-        if "sbx" not in container.labels:
+        pod = k8s_v1.read_namespaced_pod(
+            name=sandbox_id, 
+            namespace=get_namespace()
+        )
+        if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
 
-        container.stop()
-        container.remove()
+        await cleanup_sandbox_resources(sandbox_id)
         last_active.pop(sandbox_id, None)
         return {"message": f"Sandbox {sandbox_id} deleted"}
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Sandbox not found")
+    except k8s_exceptions.ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/sandboxes/{sandbox_id}/upload")
 async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
 
     try: 
-        container = client_container.containers.get(sandbox_id)
-        if "sbx" not in container.labels:
+        pod = k8s_v1.read_namespaced_pod(
+            name=sandbox_id, 
+            namespace=get_namespace()
+        )
+        if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
         
+        if pod.status.phase != "Running":
+            raise HTTPException(status_code=503, detail="Sandbox not ready")
+        
         file_content = await file.read()
-
-        # Temp Tar file
-        with tempfile.NamedTemporaryFile(suffix='.tar') as tar_file:
-            with tarfile.open(tar_file.name, 'w') as tar:
-
-                tarinfo = tarfile.TarInfo(name=file.filename)
-                tarinfo.size = len(file_content)
-
-                import io
-                tar.addfile(tarinfo, io.BytesIO(file_content))
+        
+        # base64 encoded content for kubectl exec
+        encoded_content = base64.b64encode(file_content).decode('utf-8')
+        
+        # kubectl exec to write file
+        exec_command = [
+            'sh', '-c', 
+            f'echo "{encoded_content}" | base64 -d > /app/{file.filename}'
+        ]
+        
+        try:
+            resp = stream(
+                k8s_v1.connect_get_namespaced_pod_exec,
+                sandbox_id,
+                get_namespace(),
+                command=exec_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
             
-            with open(tar_file.name, 'rb') as tar_data:
-                container.put_archive('/app', tar_data)
+            last_active[sandbox_id] = time.time()
+            
+            return {
+                "message": f"File '{file.filename}' uploaded to sandbox",
+                "filename": file.filename,
+                "size": len(file_content),
+                "path": f"/app/{file.filename}"
+            }
+        except Exception as exec_error:
+            raise HTTPException(status_code=500, detail=f"File upload failed: {str(exec_error)}")
         
-        last_active[sandbox_id] = time.time()
-        
-        return {
-            "message": f"File '{file.filename}' uploaded to sandbox",
-            "filename": file.filename,
-            "size": len(file_content),
-            "path": f"/app/{file.filename}"
-        }
-    
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Sandbox not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
+    except k8s_exceptions.ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/sandboxes/{sandbox_id}/files")
 async def list_sandbox_files(sandbox_id: str):
-    """List files in the sandbox container"""
+    if k8s_v1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes client not available")
+        
     try:
-        container = client_container.containers.get(sandbox_id)
-        if "sbx" not in container.labels:
+        pod = k8s_v1.read_namespaced_pod(
+            name=sandbox_id, 
+            namespace=get_namespace()
+        )
+        if "sbx" not in pod.metadata.labels:
             raise HTTPException(status_code=404, detail="Sandbox not found")
         
-        result = container.exec_run("ls -la /app", user="jovyan")
-        if result.exit_code == 0:
-            files_output = result.output.decode('utf-8')
-            return {"files": files_output}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to list files")
+        if pod.status.phase != "Running":
+            raise HTTPException(status_code=503, detail="Sandbox not ready")
+        
+        exec_command = ['ls', '-la', '/app']
+        
+        try:
+            resp = stream(
+                k8s_v1.connect_get_namespaced_pod_exec,
+                sandbox_id,
+                get_namespace(),
+                command=exec_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
             
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Sandbox not found")
+            return {"files": resp}
+        except Exception as exec_error:
+            raise HTTPException(status_code=500, detail=f"Failed to list files: {str(exec_error)}")
+            
+    except k8s_exceptions.ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="Sandbox not found")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -14,28 +14,43 @@ import traceback
 import httpx
 import json
 import asyncio
+import os
 
 
 def get_current_weather(latitude, longitude):
-    # Format the URL with proper parameter substitution
     url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto"
 
     try:
-        # Make the API call
         response = requests.get(url)
 
-        # Raise an exception for bad status codes
         response.raise_for_status()
 
-        # Return the JSON response
         return response.json()
 
     except requests.RequestException as e:
-        # Handle any errors that occur during the request
+
         print(f"Error fetching weather data: {e}")
         return None
 
 session_containers = {}
+
+
+def get_sandbox_base_url():
+
+    if os.environ.get("IS_SANDBOX"):
+        return "http://localhost:8000"
+    
+    # k8s - Use service DNS name for inter-pod communication
+    if os.environ.get("KUBERNETES_SERVICE_HOST"):
+        namespace = os.environ.get("KUBERNETES_NAMESPACE", "app")
+        return f"http://api.{namespace}.svc.cluster.local:8000"
+    
+    # Local Docker development
+    if os.environ.get("DOCKER_ENV"):
+        return "http://host.docker.internal:8000"
+    
+    return "http://localhost:8000"
+
 
 async def python_interpreter(code, session_id=None):
     
@@ -52,6 +67,7 @@ async def python_interpreter(code, session_id=None):
         }
 
     try:
+        base_url = get_sandbox_base_url()
         async with httpx.AsyncClient(timeout=10000.0) as client:
             
             # Checking container for this session
@@ -59,7 +75,7 @@ async def python_interpreter(code, session_id=None):
 
                 # Create Container
                 sandbox_response = await client.post(
-                    "http://localhost:8000/sandboxes",
+                    f"{base_url}/sandboxes",
                     json={"lang": "python"},
                     headers={'Content-Type': 'application/json'}
                 )
@@ -78,7 +94,7 @@ async def python_interpreter(code, session_id=None):
 
             # Execute the code
             execute_response = await client.post(
-                f"http://localhost:8000/sandboxes/{sandbox_id}/execute",
+                f"{base_url}/sandboxes/{sandbox_id}/execute",
                 json={"code": code},
                 headers={'Content-Type': 'application/json'}
             )
