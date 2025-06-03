@@ -224,7 +224,7 @@ async def create_sandbox(request: CreateSandboxRequest):
                 },  
                 "volumeMounts": [{ # For resource isolation and mask application code
                     "name": "uploaded-files",
-                    "mountPath": "/app"                    
+                    "mountPath": "/uploaded_files"                    
                 }],
                 "readinessProbe": {
                     "httpGet": {
@@ -543,7 +543,7 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
             
             # For text files
             if file.filename.endswith(('.csv', '.txt', '.py', '.json', '.md')):
-                exec_command = ['sh', '-c', f'cat > /app/{file.filename}']
+                exec_command = ['sh', '-c', f'mkdir -p /uploaded_files && cat > /uploaded_files/{file.filename}']
                 
                 resp = stream(
                     k8s_v1.connect_get_namespaced_pod_exec,
@@ -569,7 +569,7 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
                 "message": f"File '{file.filename}' uploaded to sandbox",
                 "filename": file.filename,
                 "size": len(file_content),
-                "path": f"/app/{file.filename}"
+                "path": f"/uploaded_files/{file.filename}"
             }
         except Exception as exec_error:
             print("Traceback")
