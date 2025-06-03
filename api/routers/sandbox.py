@@ -40,15 +40,20 @@ k8s_apps = None
 if not os.environ.get("IS_SANDBOX"):
     try:
         config.load_incluster_config()
+        config_loaded = True
     except config.ConfigException:
         try:
             config.load_kube_config()
+            config_loaded = True
         except config.ConfigException:
             print("NO config")
     
-    if config:
+    if config_loaded:
         k8s_v1 = client.CoreV1Api()
         k8s_apps = client.AppsV1Api()
+        print("k8s cluster initialized")
+    else:
+        print("k8s config not laoded")
 
 hx = httpx.AsyncClient(timeout=10000.0)
 last_active = {}
