@@ -40,7 +40,8 @@ k8s_apps = None
 print(f"Sandbox chekc: {os.environ.get('IS_SANDBOX')}")
 print(f"Not sandbox check: {not os.environ.get('IS_SANDBOX')}")
 
-if not os.environ.get("IS_SANDBOX"):
+# if not os.environ.get("IS_SANDBOX"):
+if os.environ.get("IS_SANDBOX") != "1":
     print(f"IS_SANDBOX = {os.environ.get('IS_SANDBOX')}")
 
     config_loaded = False
