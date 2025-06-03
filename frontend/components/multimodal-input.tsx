@@ -9,16 +9,19 @@ import {
   useCallback,
   type Dispatch,
   type SetStateAction,
+  useState,
 } from "react";
 import { toast } from "sonner";
 import { useLocalStorage, useWindowSize } from "usehooks-ts";
 
 import { cn, sanitizeUIMessages } from "@/lib/utils";
 
-import { ArrowUpIcon, StopIcon, AttachmentIcon } from "./icons";
+import { ArrowUpIcon, StopIcon } from "./icons";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { PaperclipIcon } from "lucide-react";
+
+import { useFileUpload } from "@/hooks/useFile-Upload";
 
 const suggestedActions = [
   {
@@ -90,13 +93,11 @@ export function MultimodalInput({
   useEffect(() => {
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
-      // Prefer DOM value over localStorage to handle hydration
+
       const finalValue = domValue || localStorageInput || "";
       setInput(finalValue);
       adjustHeight();
     }
-    // Only run once after hydration
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -117,48 +118,29 @@ export function MultimodalInput({
     }
   }, [handleSubmit, setLocalStorageInput, width]);
 
+  const { isUploading, uploadProgress, uploadFile } = useFileUpload();
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-
-    if(files && files.length > 0){
+    
+    if (files && files.length > 0) {
       const file = files[0];
       console.log("Selected file:", file);
 
       const sessionId = localStorage.getItem('session_id');
 
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('file', file);
-
       try {
-
-        // const response = await fetch('/api/upload', {
-        //   method: 'POST',
-        //   body: formData,
-        // });
-        const response = await fetch(`/api/sandboxes/upload?session_id=${sessionId}`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          toast.success(`File "${result.filename}" uploaded successfully!`);
-          
-          // Automatically mention the file in the chat
-          setInput(prev => `${prev}${prev ? '\n' : ''}I've uploaded ${result.filename}. Please analyze this data.`); 
-        } else {
-          toast.error('File upload failed');
-        }
+        const result = await uploadFile(file, sessionId);
+        console.log('Upload successful:', result);
       } catch (error) {
         console.error('Upload error:', error);
-        toast.error('Upload failed');
       }
     }
 
+    event.target.value = '';
   };
 
-  const triggerFileSelect = () =>{
+  const triggerFileSelect = () => {
     fileInputRef.current?.click();
   };
 
@@ -175,7 +157,6 @@ export function MultimodalInput({
               key={`suggested-action-${suggestedAction.title}-${index}`}
               className={index > 1 ? "hidden sm:block" : "block"}
             >
-
               <Button
                 variant="ghost"
                 onClick={async () => {
@@ -196,73 +177,104 @@ export function MultimodalInput({
         </div>
       )}
 
-      <Textarea
-        ref={textareaRef}
-        placeholder="Send a message..."
-        value={input}
-        onChange={handleInput}
-        className={cn(
-          "min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl !text-base bg-muted",
-          className,
-        )}
-        
-        rows={3}
-        autoFocus
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
+      {/* Upload Progress Indicator - Position above input */}
+      {isUploading && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-background border rounded-lg p-3 shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Uploading file...</span>
+            <span className="text-sm text-muted-foreground">
+              {uploadProgress.toFixed(0)}%
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </motion.div>
+      )}
 
-            if (isLoading) {
-              toast.error("Please wait for the model to finish its response!");
-            } else {
-              submitForm();
+      <div className="relative">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileSelect}
+          accept="image/*,.pdf,.doc,.docx,.txt,.csv"
+          disabled={isLoading || isUploading}
+        />
+        
+        <Textarea
+          ref={textareaRef}
+          placeholder="Send a message..."
+          value={input}
+          onChange={handleInput}
+          className={cn(
+            "min-h-[60px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl !text-base bg-muted pl-12 pr-12 py-3",
+            className,
+          )}
+          rows={3}
+          autoFocus
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+
+              if (isLoading) {
+                toast.error("Please wait for the model to finish its response!");
+              } else {
+                submitForm();
+              }
             }
-          }
-        }}
-      />
-      
-      <input
-        ref = {fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={handleFileSelect}
-        accept="image/*,.pdf,.doc,.docx,.txt,.csv"
-      />
-      <Button
+          }}
+        />
+        
+        {/* File Upload Button - Left side */}
+        <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute bottom-2 left-2 h-8 w-8 rounded-full"
+          className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full hover:bg-muted-foreground/10"
           onClick={triggerFileSelect}
-          disabled={isLoading}
+          disabled={isLoading || isUploading}
         >
-          <PaperclipIcon />
+          <PaperclipIcon className={isUploading ? "animate-spin" : ""} size={16} />
         </Button>
 
-      {isLoading ? (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 border dark:border-zinc-600"
-          onClick={(event) => {
-            event.preventDefault();
-            stop();
-            setMessages((messages) => sanitizeUIMessages(messages));
-          }}
-        >
-          <StopIcon size={14} />
-        </Button>
-      ) : (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 border dark:border-zinc-600"
-          onClick={(event) => {
-            event.preventDefault();
-            submitForm();
-          }}
-          disabled={input.length === 0}
-        >
-          <ArrowUpIcon size={14} />
-        </Button>
-      )}
-      
+        {/* Submit/Stop Button - Right side */}
+        {isLoading ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full hover:bg-muted-foreground/10"
+            onClick={(event) => {
+              event.preventDefault();
+              stop();
+              setMessages((messages) => sanitizeUIMessages(messages));
+            }}
+          >
+            <StopIcon size={16} />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full hover:bg-muted-foreground/10 disabled:opacity-50"
+            onClick={(event) => {
+              event.preventDefault();
+              submitForm();
+            }}
+            disabled={input.length === 0}
+          >
+            <ArrowUpIcon size={16} />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

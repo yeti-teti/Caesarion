@@ -14,8 +14,10 @@ interface OutputComponentProps {
 
 const StreamOutput: React.FC<OutputComponentProps> = ({ output }) => (
   <pre className={cn(
-    "text-sm font-mono whitespace-pre-wrap p-3 rounded-md border",
-    output.name === "stderr" ? "bg-red-100 text-red-900 border-red-300" : "bg-white text-gray-900 border-blue-200"
+    "text-sm font-mono whitespace-pre-wrap p-3 rounded-lg border",
+    output.name === "stderr" 
+      ? "bg-red-50 text-red-900 border-red-200" 
+      : "bg-slate-50 text-slate-900 border-slate-200"
   )}>
     {output.text}
   </pre>
@@ -28,7 +30,7 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   if (data['text/html']) {
     return (
       <div 
-        className="border border-blue-200 rounded-md p-3 bg-white shadow-sm"
+        className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm"
         dangerouslySetInnerHTML={{ __html: data['text/html'] }}
       />
     );
@@ -36,11 +38,11 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   if (data['image/png']) {
     return (
-      <div className="flex justify-center p-3 bg-white rounded-md border border-blue-200 shadow-sm">
+      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
         <img 
           src={`data:image/png;base64,${data['image/png']}`}
           alt="Python output"
-          className="max-w-full h-auto rounded-md"
+          className="max-w-full h-auto rounded-lg"
         />
       </div>
     );
@@ -48,11 +50,11 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   if (data['image/jpeg']) {
     return (
-      <div className="flex justify-center p-3 bg-white rounded-md border border-blue-200 shadow-sm">
+      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
         <img 
           src={`data:image/jpeg;base64,${data['image/jpeg']}`}
           alt="Python output"
-          className="max-w-full h-auto rounded-md"
+          className="max-w-full h-auto rounded-lg"
         />
       </div>
     );
@@ -60,7 +62,7 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   if (data['text/plain']) {
     return (
-      <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-white text-gray-900 rounded-md border border-blue-200 shadow-sm">
+      <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
         {data['text/plain']}
       </pre>
     );
@@ -68,7 +70,7 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   // Fallback for other data types
   return (
-    <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-white text-gray-900 rounded-md border border-blue-200 shadow-sm">
+    <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
       {JSON.stringify(data, null, 2)}
     </pre>
   );
@@ -79,18 +81,18 @@ const DisplayDataOutput: React.FC<OutputComponentProps> = ({ output }) => {
 };
 
 const ErrorOutput: React.FC<OutputComponentProps> = ({ output }) => (
-  <div className="bg-red-100 border border-red-300 p-3 rounded-md shadow-sm">
-    <div className="text-red-900 font-semibold mb-2">
+  <div className="bg-red-50 border border-red-200 p-3 rounded-lg shadow-sm">
+    <div className="text-red-900 font-semibold mb-2 text-sm">
       {output.ename}: {output.evalue}
     </div>
-    <pre className="text-sm font-mono text-red-800 whitespace-pre-wrap">
+    <pre className="text-xs font-mono text-red-800 whitespace-pre-wrap">
       {output.traceback.join('\n')}
     </pre>
   </div>
 );
 
 export const JupyterOutput: React.FC<JupyterOutputProps> = ({ outputs, className }) => {
-  // Debug logging
+
   console.log("JupyterOutput received outputs:", outputs);
   
   if (!outputs || outputs.length === 0) {
@@ -114,7 +116,7 @@ export const JupyterOutput: React.FC<JupyterOutputProps> = ({ outputs, className
             return <ErrorOutput key={key} output={output} />;
           default:
             return (
-              <pre key={key} className="text-sm font-mono whitespace-pre-wrap p-3 bg-white text-gray-900 rounded-md border border-blue-200 shadow-sm">
+              <pre key={key} className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
                 {JSON.stringify(output, null, 2)}
               </pre>
             );
