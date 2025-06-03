@@ -218,10 +218,14 @@ async def create_sandbox(request: CreateSandboxRequest):
                     {"name": "PORT", "value": str(SANDBOX_PORT)},
                     {"name": "OPENAI_API_KEY", "value": os.environ.get("OPENAI_API_KEY", "")}
                 ],
-                "resources": {
+                "resources":{
                     "limits": {"memory": "5Gi", "cpu": "500m"},
-                    "requests": {"memory": "1024Mi", "cpu": "100m"}
-                },
+                    "requests": {"memory": "2Gi", "cpu": "100m"}
+                },  
+                "volumeMounts": [{ # For resource isolation and mask application code
+                    "name": "uploaded-files",
+                    "mountPath": "/app"                    
+                }],
                 "readinessProbe": {
                     "httpGet": {
                         "path": "/health",
@@ -240,6 +244,10 @@ async def create_sandbox(request: CreateSandboxRequest):
                     "periodSeconds": 10,
                     "timeoutSeconds": 5
                 }
+            }],
+            "volumes": [{
+                "name": "uploaded-files",
+                "emptyDir": {}
             }],
             "restartPolicy": "Never"
         }
