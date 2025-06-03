@@ -4,8 +4,7 @@ import asyncio
 import time
 import httpx
 import uuid
-import tarfile
-import tempfile
+import traceback
 import base64
 from io import BytesIO
 
@@ -566,6 +565,8 @@ async def upload_file_to_sandbox(sandbox_id: str, file: UploadFile = File(...)):
                 "path": f"/app/{file.filename}"
             }
         except Exception as exec_error:
+            print("Traceback")
+            traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"File upload failed: {str(exec_error)}")
         
     except k8s_exceptions.ApiException as e:
