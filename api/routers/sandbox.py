@@ -619,3 +619,8 @@ async def list_sandbox_files(sandbox_id: str):
         if e.status == 404:
             raise HTTPException(status_code=404, detail="Sandbox not found")
         raise HTTPException(status_code=500, detail=str(e))
+
+# @router.post("/health")
+# @router.get("/health")
+# async def health_check():
+#     return {"status": "healthy", "timestamp": time.time()}

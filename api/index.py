@@ -262,3 +262,8 @@ async def upload_file_by_session(
     sandbox_id = session_containers[session_id]
     
     return await upload_file_to_sandbox(sandbox_id, file)
+
+@app.get("/")
+@app.post("/")
+async def root_health_check():
+    return {"status": "healthy", "service": "api"}
