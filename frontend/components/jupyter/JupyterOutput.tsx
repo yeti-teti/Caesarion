@@ -18,7 +18,7 @@ const StreamOutput: React.FC<OutputComponentProps> = ({ output }) => (
       "text-sm font-mono whitespace-pre p-3 rounded-lg border min-w-fit",
       output.name === "stderr" 
         ? "bg-red-50 text-red-900 border-red-200" 
-        : "bg-blue-50 text-slate-900 border-blue-200"
+        : "bg-blue-50 text-gray-900 border-blue-200"
     )}>
       {output.text}
     </pre>
@@ -33,8 +33,9 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
     return (
       <div className="overflow-x-auto">
         <div 
-          className="border border-blue-200 rounded-lg p-3 bg-blue-50 shadow-sm min-w-fit"
+          className="border border-blue-200 rounded-lg p-3 bg-blue-50 shadow-sm min-w-fit text-gray-900"
           dangerouslySetInnerHTML={{ __html: data['text/html'] }}
+          style={{ color: '#111827' }}
         />
       </div>
     );
@@ -69,7 +70,7 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   if (data['text/plain']) {
     return (
       <div className="overflow-x-auto">
-        <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-slate-900 rounded-lg border border-blue-200 min-w-fit">
+        <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-gray-900 rounded-lg border border-blue-200 min-w-fit font-semibold">
           {data['text/plain']}
         </pre>
       </div>
@@ -79,7 +80,7 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   // Fallback for other data types
   return (
     <div className="overflow-x-auto">
-      <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-slate-900 rounded-lg border border-blue-200 min-w-fit">
+      <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-gray-900 rounded-lg border border-blue-200 min-w-fit font-semibold">
         {JSON.stringify(data, null, 2)}
       </pre>
     </div>
@@ -130,7 +131,7 @@ export const JupyterOutput: React.FC<JupyterOutputProps> = ({ outputs, className
           default:
             return (
               <div key={key} className="overflow-x-auto">
-                <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-slate-900 rounded-lg border border-blue-200 min-w-fit">
+                <pre className="text-sm font-mono whitespace-pre p-3 bg-blue-50 text-gray-900 rounded-lg border border-blue-200 min-w-fit font-semibold">
                   {JSON.stringify(output, null, 2)}
                 </pre>
               </div>

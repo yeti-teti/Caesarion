@@ -123,9 +123,9 @@ async def python_interpreter(code, session_id=None):
             "code": code,
             "outputs": [{
                 "output_type": "error",
-                "ename": "ExecutionError",
+                "ename": "ConnectionError" if "peer closed connection" in str(e) or "incomplete chunked read" in str(e) else "ExecutionError",
                 "evalue": str(e),
-                "traceback": [f"Error: {str(e)}"]
+                "traceback": [f"Sandbox connection error: {str(e)}"]
             }],
             "success": False
         }
