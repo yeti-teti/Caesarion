@@ -13,14 +13,16 @@ interface OutputComponentProps {
 }
 
 const StreamOutput: React.FC<OutputComponentProps> = ({ output }) => (
-  <pre className={cn(
-    "text-sm font-mono whitespace-pre-wrap p-3 rounded-lg border",
-    output.name === "stderr" 
-      ? "bg-red-50 text-red-900 border-red-200" 
-      : "bg-slate-50 text-slate-900 border-slate-200"
-  )}>
-    {output.text}
-  </pre>
+  <div className="overflow-x-auto">
+    <pre className={cn(
+      "text-sm font-mono whitespace-pre p-3 rounded-lg border min-w-fit",
+      output.name === "stderr" 
+        ? "bg-red-50 text-red-900 border-red-200" 
+        : "bg-slate-50 text-slate-900 border-slate-200"
+    )}>
+      {output.text}
+    </pre>
+  </div>
 );
 
 const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
@@ -29,20 +31,23 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   // Handle different MIME types
   if (data['text/html']) {
     return (
-      <div 
-        className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm"
-        dangerouslySetInnerHTML={{ __html: data['text/html'] }}
-      />
+      <div className="overflow-x-auto">
+        <div 
+          className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm min-w-fit"
+          dangerouslySetInnerHTML={{ __html: data['text/html'] }}
+        />
+      </div>
     );
   }
   
   if (data['image/png']) {
     return (
-      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
         <img 
           src={`data:image/png;base64,${data['image/png']}`}
           alt="Python output"
-          className="max-w-full h-auto rounded-lg"
+          className="max-w-none h-auto rounded-lg"
+          style={{ maxWidth: 'none' }}
         />
       </div>
     );
@@ -50,11 +55,12 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   if (data['image/jpeg']) {
     return (
-      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex justify-center p-3 bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
         <img 
           src={`data:image/jpeg;base64,${data['image/jpeg']}`}
           alt="Python output"
-          className="max-w-full h-auto rounded-lg"
+          className="max-w-none h-auto rounded-lg"
+          style={{ maxWidth: 'none' }}
         />
       </div>
     );
@@ -62,17 +68,21 @@ const ExecuteResultOutput: React.FC<OutputComponentProps> = ({ output }) => {
   
   if (data['text/plain']) {
     return (
-      <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
-        {data['text/plain']}
-      </pre>
+      <div className="overflow-x-auto">
+        <pre className="text-sm font-mono whitespace-pre p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200 min-w-fit">
+          {data['text/plain']}
+        </pre>
+      </div>
     );
   }
   
   // Fallback for other data types
   return (
-    <pre className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
-      {JSON.stringify(data, null, 2)}
-    </pre>
+    <div className="overflow-x-auto">
+      <pre className="text-sm font-mono whitespace-pre p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200 min-w-fit">
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    </div>
   );
 };
 
@@ -82,12 +92,15 @@ const DisplayDataOutput: React.FC<OutputComponentProps> = ({ output }) => {
 
 const ErrorOutput: React.FC<OutputComponentProps> = ({ output }) => (
   <div className="bg-red-50 border border-red-200 p-3 rounded-lg shadow-sm">
-    <div className="text-red-900 font-semibold mb-2 text-sm">
-      {output.ename}: {output.evalue}
+    <div className="text-red-900 font-semibold mb-2 text-sm flex items-center gap-2">
+      <span className="text-red-500">⚠️</span>
+      <span>{output.ename}: {output.evalue}</span>
     </div>
-    <pre className="text-xs font-mono text-red-800 whitespace-pre-wrap">
-      {output.traceback.join('\n')}
-    </pre>
+    <div className="overflow-x-auto">
+      <pre className="text-xs font-mono text-red-800 whitespace-pre min-w-fit">
+        {output.traceback.join('\n')}
+      </pre>
+    </div>
   </div>
 );
 
@@ -116,9 +129,11 @@ export const JupyterOutput: React.FC<JupyterOutputProps> = ({ outputs, className
             return <ErrorOutput key={key} output={output} />;
           default:
             return (
-              <pre key={key} className="text-sm font-mono whitespace-pre-wrap p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200">
-                {JSON.stringify(output, null, 2)}
-              </pre>
+              <div key={key} className="overflow-x-auto">
+                <pre className="text-sm font-mono whitespace-pre p-3 bg-slate-50 text-slate-900 rounded-lg border border-slate-200 min-w-fit">
+                  {JSON.stringify(output, null, 2)}
+                </pre>
+              </div>
             );
         }
       })}

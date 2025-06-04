@@ -8,9 +8,9 @@ export const Navbar = () => {
   return (
     <div className="p-2 flex flex-row gap-2 justify-between">
             
-      <Button>
+      {/* <Button>
         Connected
-      </Button>
+      </Button> */}
 
     </div>
   );

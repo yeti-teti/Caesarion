@@ -25,14 +25,14 @@ import { useFileUpload } from "@/hooks/useFile-Upload";
 
 const suggestedActions = [
   {
-    title: "What is the weather",
-    label: "in San Francisco?",
-    action: "What is the weather in San Francisco?",
-  },
-  {
     title: "Write and execute code",
     label: "Factorial of 5",
-    action: "Code to calculate factorial of 5",
+    action: "Code to calculate factorial of 5.",
+  },
+  {
+    title: "Visualize",
+    label: "Bar plot",
+    action: "Give a random barplot",
   },
 ];
 

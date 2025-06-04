@@ -4,13 +4,16 @@ metadata:
   name: app-ingress
   namespace: app
   annotations:
+    kubernetes.io/ingress.global-static-ip-name: gke-cleo 
     networking.gke.io/managed-certificates: gke-certificate
+    kubernetes.io/ingress.class: "gce"
+    
     # nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    # nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    # nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
 spec:
-  ingressClassName: nginx
+  ingressClassName: gce
   rules:
   - host: augustus.work
     http:

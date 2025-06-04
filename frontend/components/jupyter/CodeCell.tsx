@@ -25,28 +25,32 @@ export const CodeCell: React.FC<CodeCellProps> = ({
         
         {/* Input Section */}
         <div className="flex">
-          <div className="flex-shrink-0 w-14 bg-slate-50 border-r border-slate-200 flex items-start justify-center pt-3 pb-2">
+          <div className="flex-shrink-0 w-14 bg-slate-50 border-r border-slate-200 flex items-start justify-center pt-4 pb-2">
             <span className="text-xs text-slate-600 font-mono font-medium">
               In
             </span>
           </div>
-          <div className="flex-1">
-            <pre className="text-sm font-mono whitespace-pre-wrap p-4 bg-white overflow-x-auto text-slate-900 leading-relaxed">
-              <code className="language-python">{code}</code>
-            </pre>
+          <div className="flex-1 min-w-0">
+            <div className="overflow-x-auto">
+              <pre className="text-sm font-mono whitespace-pre p-4 bg-white text-slate-900 leading-relaxed min-w-fit">
+                <code className="language-python">{code}</code>
+              </pre>
+            </div>
           </div>
         </div>
 
         {/* Output Section */}
         {outputs && outputs.length > 0 && (
-          <div className="flex border-t border-slate-200">
-            <div className="flex-shrink-0 w-14 bg-slate-50 border-r border-slate-200 flex items-start justify-center pt-3 pb-2">
-              <span className="text-xs text-slate-600 font-mono font-medium">
-                Out
-              </span>
-            </div>
-            <div className="flex-1 p-4 bg-slate-25">
-              <JupyterOutput outputs={outputs} />
+          <div className="border-t border-slate-200">
+            <div className="flex">
+              <div className="flex-shrink-0 w-14 bg-slate-50 border-r border-slate-200 flex items-start justify-center pt-4 pb-2">
+                <span className="text-xs text-slate-600 font-mono font-medium">
+                  Out
+                </span>
+              </div>
+              <div className="flex-1 min-w-0 p-4 bg-slate-25">
+                <JupyterOutput outputs={outputs} />
+              </div>
             </div>
           </div>
         )}

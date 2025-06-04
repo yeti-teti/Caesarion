@@ -52,16 +52,36 @@ export function Chat() {
   if (!sessionId) {
     return (
       <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="text-muted-foreground">Initializing sandbox session...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background">
+
+      {/* Session indicator */}
+      <div className="bg-slate-50 border-b border-slate-200 px-4 py-2">
+        <div className="max-w-4xl mx-auto flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400"></div>
+            <span>Sandbox Session: {sessionId.slice(-8)}</span>
+          </div>
+          {isLoading && (
+            <div className="flex items-center gap-2 ml-4">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
+              <span>Working...</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div
         ref={messagesContainerRef}
-        className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
+        className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-6 pb-4"
       >
         {messages.length === 0 && <Overview />}
 
@@ -84,7 +104,7 @@ export function Chat() {
         />
       </div>
 
-      <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl">
+      <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-4xl border-t border-slate-200">
         <MultimodalInput
           chatId={chatId}
           input={input}

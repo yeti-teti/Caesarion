@@ -2,8 +2,9 @@
 
 import type { Message } from "ai";
 import { motion } from "framer-motion";
+import { useState } from "react";
 
-import { SparklesIcon } from "./icons";
+import { SparklesIcon, LoaderIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { PreviewAttachment } from "./preview-attachment";
 import { cn } from "@/lib/utils";
@@ -11,8 +12,67 @@ import { Weather } from "./weather";
 
 import { CodeCell } from "./jupyter/CodeCell";
 
+
+const ExecutionStatus = ({ 
+  status, 
+  toolName 
+}: { 
+  status: 'executing' | 'completed' | 'error';
+  toolName: string;
+}) => {
+  const statusConfig = {
+    executing: {
+      icon: <LoaderIcon size={14} className="animate-spin" />,
+      text: toolName === 'python_interpreter' ? 'Executing code in sandbox...' : 'Processing...',
+      bgColor: 'bg-blue-50',
+      textColor: 'text-blue-700',
+      borderColor: 'border-blue-200'
+    },
+    completed: {
+      icon: <SparklesIcon size={14} />,
+      text: 'Execution completed',
+      bgColor: 'bg-green-50',
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200'
+    },
+    error: {
+      icon: <span className="text-red-500">⚠</span>,
+      text: 'Execution failed',
+      bgColor: 'bg-red-50',
+      textColor: 'text-red-700',
+      borderColor: 'border-red-200'
+    }
+  };
+
+  const config = statusConfig[status];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn(
+        "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium",
+        config.bgColor,
+        config.textColor,
+        config.borderColor
+      )}
+    >
+      {config.icon}
+      <span>{config.text}</span>
+      {status === 'executing' && (
+        <div className="flex gap-1 ml-2">
+          <div className="w-1 h-1 bg-current rounded-full animate-pulse" style={{animationDelay: '0ms'}} />
+          <div className="w-1 h-1 bg-current rounded-full animate-pulse" style={{animationDelay: '150ms'}} />
+          <div className="w-1 h-1 bg-current rounded-full animate-pulse" style={{animationDelay: '300ms'}} />
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
 export const PreviewMessage = ({
   message,
+  isLoading
 }: {
   chatId: string;
   message: Message;
@@ -51,14 +111,25 @@ export const PreviewMessage = ({
                 if (state === "result") {
                   const { result } = toolInvocation;
 
-                  // Debug logging
+                  
+                  // Completion status
+                  const hasError = toolName === "python_interpreter" && 
+                  result.outputs?.some(
+                    (output: any) => output.output_type === 'error'
+                  );
+
                   if (toolName === "python_interpreter") {
                     console.log("Python interpreter result:", result);
                     console.log("Tool args:", toolInvocation.args);
                   }
 
                   return (
-                    <div key={toolCallId}>
+                    <div key={toolCallId} className="space-y-3">
+                      <ExecutionStatus 
+                        status={hasError ? 'error' : 'completed'} 
+                        toolName={toolName} 
+                      />
+
                       {toolName === "get_current_weather" ? (
                         <Weather weatherAtLocation={result} />
                       ) : toolName === "python_interpreter" ? (
@@ -75,27 +146,47 @@ export const PreviewMessage = ({
                     </div>
                   );
                 }
+
+                // Show executing status
                 return (
-                  <div
-                    key={toolCallId}
-                    className={cn({
+                  <div key={toolCallId} className="space-y-3">
+                    <ExecutionStatus status="executing" toolName={toolName} />
+                    
+                    <div className={cn({
                       skeleton: ["get_current_weather", "python_interpreter"].includes(toolName),
-                    })}
-                  >
-                    {toolName === "get_current_weather" ? <Weather /> : 
-                     toolName === "python_interpreter" ? (
-                       <div className="animate-pulse bg-gray-200 h-32 rounded-md" />
-                     ) : null}
+                    })}>
+                      {toolName === "get_current_weather" ? (
+                        <Weather />
+                      ) : toolName === "python_interpreter" ? (
+                        <motion.div 
+                          className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm"
+                          initial={{ opacity: 0.6 }}
+                          animate={{ opacity: [0.6, 1, 0.6] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <div className="flex">
+                            <div className="flex-shrink-0 w-14 bg-slate-50 border-r border-slate-200 flex items-center justify-center py-4">
+                              <span className="text-xs text-slate-600 font-mono font-medium">In</span>
+                            </div>
+                            <div className="flex-1 p-4">
+                              <div className="space-y-2">
+                                <div className="h-4 bg-slate-200 rounded animate-pulse" />
+                                <div className="h-4 bg-slate-200 rounded animate-pulse w-3/4" />
+                                <div className="h-4 bg-slate-200 rounded animate-pulse w-1/2" />
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
-
-              
             </div>
           )}
 
           {message.experimental_attachments && (
-            <div className="flex flex-row gap-2">
+            <div className="flex flex-row gap-2 flex-wrap">
               {message.experimental_attachments.map((attachment) => (
                 <PreviewAttachment
                   key={attachment.url}

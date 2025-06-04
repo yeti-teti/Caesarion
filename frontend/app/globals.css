@@ -107,3 +107,48 @@
         @apply bg-foreground/20 animate-pulse;
     }
 }
+
+.overflow-x-auto {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184) transparent;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background-color: rgb(148 163 184);
+    border-radius: 4px;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(100 116 139);
+  }
+  
+  /* Better focus states for accessibility */
+  .code-cell:focus-within {
+    ring: 2px;
+    ring-color: rgb(59 130 246);
+    ring-offset: 2px;
+  }
+  
+  /* Smooth animations for loading states */
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  .animate-fade-in-scale {
+    animation: fadeInScale 0.3s ease-out;
+  }
