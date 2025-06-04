@@ -156,6 +156,7 @@ export function MultimodalInput({
   };
 
   return (
+    
     <div className="relative w-full flex flex-col gap-4">
       {messages.length === 0 && (
         <div className="grid sm:grid-cols-2 gap-2 w-full">
