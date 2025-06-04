@@ -3,10 +3,15 @@
 Python code execution in Kubernetes-based sandboxes.
 
 ## Architecture
-### Architecture Diagrams
-- [System Architecture](https://drive.google.com/file/d/1uPX6vurRm4I8h3stuJ6mxLtlA7G8SEvY/view?usp=sharing)
-- [Overall System Flow](https://drive.google.com/file/d/1UGf5OkHPzIpgKlNHaC9cRT_93_N9qPtD/view?usp=sharing)
-- [Pod Creation Flow](https://drive.google.com/file/d/1xw10oMOM22ncJFy-TOlijzbmepHExmrC/view?usp=sharing)
+
+### System Architecture
+![System Architecture](https://drive.google.com/uc?export=view&id=1uPX6vurRm4I8h3stuJ6mxLtlA7G8SEvY)
+
+### Overall System Flow
+![Overall System Flow](https://drive.google.com/uc?export=view&id=1UGf5OkHPzIpgKlNHaC9cRT_93_N9qPtD)
+
+### Pod Creation Flow
+![Pod Creation Flow](https://drive.google.com/uc?export=view&id=1xw10oMOM22ncJFy-TOlijzbmepHExmrC)
 
 ### Component Flow
 1. **Frontend Request** → Chat interface sends user messages to API
