@@ -28,7 +28,7 @@ Python code execution in Kubernetes-based sandboxes.
 
 ## Backend Architecture
 
-### FastAPI Application Structure
+### Application Structure
 The backend is built with **FastAPI** and provides several key components:
 
 #### Core Modules
