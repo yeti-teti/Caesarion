@@ -219,8 +219,8 @@ async def create_sandbox(request: CreateSandboxRequest):
                     {"name": "OPENAI_API_KEY", "value": os.environ.get("OPENAI_API_KEY", "")}
                 ],
                 "resources":{
-                    "limits": {"memory": "8Gi", "cpu": "1000m"},
-                    "requests": {"memory": "6Gi", "cpu": "400m"}
+                    "requests": {"memory": "1Gi", "cpu": "300m"}
+                    "limits": {"memory": "3Gi", "cpu": "1000m"}
                 },  
                 "volumeMounts": [{ # For resource isolation and mask application code
                     "name": "uploaded-files",
