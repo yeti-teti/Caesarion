@@ -130,31 +130,23 @@ async def python_interpreter(code, session_id=None):
             "success": False
         }
 
-async def session_pod(session_id:str):
-
+async def session_pod(session_id: str):
     if not session_id:
         raise ValueError("Session ID required")
 
     if session_id in session_containers:
         return session_containers[session_id]
 
+    from routers.sandbox import create_sandbox, CreateSandboxRequest
+    
     try:
-        base_url = get_sandbox_base_url()
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            sandbox_response = await client.post(
-                f"{base_url}/sandboxes",
-                json={"lang": "python"},
-                headers={'Content-Type': 'application/json'}
-            )
-            sandbox_response.raise_for_status()
-
-            sandbox_data = sandbox_response.json()
-            sandbox_id = sandbox_data.get("id")
-            session_containers[session_id] = sandbox_id
-
-            await asyncio.sleep(10)
-
-            return sandbox_id
+        result = await create_sandbox(CreateSandboxRequest(lang="python"))
+        sandbox_id = result["id"]
+        session_containers[session_id] = sandbox_id
+        
+        await asyncio.sleep(10)
+        
+        return sandbox_id
     except Exception as e:
-        print(f"Creation failed: {e}")
+        print(f"Session pod creation failed: {e}")
         raise e
