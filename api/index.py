@@ -157,74 +157,122 @@ async def stream_text(session_id: str, messages: List[ChatCompletionMessageParam
     }
     
     full_messages = [system_message] + messages
-
     draft_tool_calls = []
     draft_tool_calls_index = -1
-
     stream = do_stream(full_messages)
     
+    try:
+        for chunk in stream:
+            for choice in chunk.choices:
+                if choice.finish_reason == "stop":
+                    continue
 
-    for chunk in stream:
-        for choice in chunk.choices:
-            if choice.finish_reason == "stop":
-                continue
-
-            elif choice.finish_reason == "tool_calls":
-                for tool_call in draft_tool_calls:
-                    yield '9:{{"toolCallId":"{id}","toolName":"{name}","args":{args}}}\n'.format(
-                        id=tool_call["id"],
-                        name=tool_call["name"],
-                        args=tool_call["arguments"])
-
-                for tool_call in draft_tool_calls:
-                    tool_function = available_tools[tool_call["name"]]
+                elif choice.finish_reason == "tool_calls":
                     
-                    # Check if the function is async
-                    if asyncio.iscoroutinefunction(tool_function):
-                        if tool_call["name"] == "python_interpreter":
-                            tool_result = await tool_function(
-                                session_id=session_id,  # Not request.sessionId
-                                **json.loads(tool_call["arguments"])
-                            )
+                    for tool_call in draft_tool_calls:
+                        yield '9:{{"toolCallId":"{id}","toolName":"{name}","args":{args}}}\n'.format(
+                            id=tool_call["id"],
+                            name=tool_call["name"],
+                            args=tool_call["arguments"])
+
+                
+                    for tool_call in draft_tool_calls:
+                        tool_function = available_tools[tool_call["name"]]
+                        
+                        try:
+                            if tool_call["name"] == "python_interpreter":
+                                yield '0:{text}\n'.format(text=json.dumps("Executing code..."))
+
+                            # Execute with timeout protection
+                            if asyncio.iscoroutinefunction(tool_function):
+                                if tool_call["name"] == "python_interpreter":
+                                    
+                                    tool_result = await asyncio.wait_for(
+                                        tool_function(
+                                            session_id=session_id,
+                                            **json.loads(tool_call["arguments"])
+                                        ),
+                                        timeout=300.0 
+                                    )
+                                else:
+                                    tool_result = await asyncio.wait_for(
+                                        tool_function(**json.loads(tool_call["arguments"])),
+                                        timeout=60.0 
+                                    )
+                            else:
+                                tool_result = tool_function(**json.loads(tool_call["arguments"]))
+
+                        except asyncio.TimeoutError:
+                            print(f"Tool execution timeout: {tool_call['name']}")
+
+                            yield '0:{text}\n'.format(text=json.dumps("Execution timed out"))
+
+                            tool_result = {
+                                "code": json.loads(tool_call["arguments"]).get("code", ""),
+                                "outputs": [{
+                                    "output_type": "error",
+                                    "ename": "TimeoutError",
+                                    "evalue": "Execution timed out after 5 minutes",
+                                    "traceback": ["Tool execution exceeded maximum time limit"]
+                                }],
+                                "success": False
+                            }
+                        except Exception as e:
+                            print(f"Tool execution error: {tool_call['name']} - {str(e)}")
+
+                            yield '0:{text}\n'.format(text=json.dumps("Execution Failed"))
+
+                            tool_result = {
+                                "code": json.loads(tool_call["arguments"]).get("code", ""),
+                                "outputs": [{
+                                    "output_type": "error",
+                                    "ename": "ExecutionError",
+                                    "evalue": str(e),
+                                    "traceback": [f"Tool execution failed: {str(e)}"]
+                                }],
+                                "success": False
+                            }
+
+                        # Always send result
+                        yield 'a:{{"toolCallId":"{id}","toolName":"{name}","args":{args},"result":{result}}}\n'.format(
+                            id=tool_call["id"],
+                            name=tool_call["name"],
+                            args=tool_call["arguments"],
+                            result=json.dumps(tool_result))
+
+                elif choice.delta.tool_calls:
+                    for tool_call in choice.delta.tool_calls:
+                        id = tool_call.id
+                        name = tool_call.function.name
+                        arguments = tool_call.function.arguments
+
+                        if (id is not None):
+                            draft_tool_calls_index += 1
+                            draft_tool_calls.append(
+                                {"id": id, "name": name, "arguments": ""})
                         else:
-                            tool_result = await tool_function(**json.loads(tool_call["arguments"]))
-                    else:
-                        tool_result = tool_function(**json.loads(tool_call["arguments"]))
+                            draft_tool_calls[draft_tool_calls_index]["arguments"] += arguments
 
-                    yield 'a:{{"toolCallId":"{id}","toolName":"{name}","args":{args},"result":{result}}}\n'.format(
-                        id=tool_call["id"],
-                        name=tool_call["name"],
-                        args=tool_call["arguments"],
-                        result=json.dumps(tool_result))
+                else:
+                    yield '0:{text}\n'.format(text=json.dumps(choice.delta.content))
 
-            elif choice.delta.tool_calls:
-                for tool_call in choice.delta.tool_calls:
-                    id = tool_call.id
-                    name = tool_call.function.name
-                    arguments = tool_call.function.arguments
+            if chunk.choices == []:
+                usage = chunk.usage
+                prompt_tokens = usage.prompt_tokens
+                completion_tokens = usage.completion_tokens
 
-                    if (id is not None):
-                        draft_tool_calls_index += 1
-                        draft_tool_calls.append(
-                            {"id": id, "name": name, "arguments": ""})
-
-                    else:
-                        draft_tool_calls[draft_tool_calls_index]["arguments"] += arguments
-
-            else:
-                yield '0:{text}\n'.format(text=json.dumps(choice.delta.content))
-
-        if chunk.choices == []:
-            usage = chunk.usage
-            prompt_tokens = usage.prompt_tokens
-            completion_tokens = usage.completion_tokens
-
-            yield 'e:{{"finishReason":"{reason}","usage":{{"promptTokens":{prompt},"completionTokens":{completion}}},"isContinued":false}}\n'.format(
-                reason="tool-calls" if len(
-                    draft_tool_calls) > 0 else "stop",
-                prompt=prompt_tokens,
-                completion=completion_tokens
-            )
+                yield 'e:{{"finishReason":"{reason}","usage":{{"promptTokens":{prompt},"completionTokens":{completion}}},"isContinued":false}}\n'.format(
+                    reason="tool-calls" if len(draft_tool_calls) > 0 else "stop",
+                    prompt=prompt_tokens,
+                    completion=completion_tokens
+                )
+                
+    except Exception as e:
+        print(f"Streaming error: {str(e)}")
+        # Send error completion
+        yield 'e:{{"finishReason":"error","error":"{error}","isContinued":false}}\n'.format(
+            error=json.dumps(str(e))
+        )
 
 @app.post("/api/sessions/{session_id}/initialize")
 async def initialize_session(session_id: str):

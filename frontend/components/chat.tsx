@@ -16,6 +16,7 @@ export function Chat() {
   const [sessionId, setSessionId] = useState<string>("");
   const [sandboxStatus, setSandboxStatus] = useState<"initializing" | "ready" | "failed" | "unknown">("unknown");
 
+  
   // Initialize session and create sandbox pod
   const initializeSession = async (sessionId: string) => {
     try {
@@ -75,14 +76,37 @@ export function Chat() {
     body: {
       session_id: sessionId
     },
+    
+    fetch: (url, options) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
+      
+      return fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+    },
+
     onError: (error) => {
-      if (error.message.includes("Too many requests")) {
-        toast.error(
-          "You are sending too many messages. Please try again later.",
-        );
+      console.error("Chat error:", error);
+      if (error.name === 'AbortError') {
+        toast.error("Request timed out. The operation may still be running. Wait before sending another message.");
+      } else if (error.message.includes("Too many requests")) {
+        toast.error("You are sending too many messages. Please try again later.");
+      } else {
+        toast.error("An error occurred. Refresh if the interface becomes unresponsive.");
       }
     },
+
   });
+
+  const forceStop = () => {
+    stop();
+    setMessages(prev => prev.filter(msg => 
+      !msg.toolInvocations?.some(tool => tool.state !== 'result')
+    ));
+    toast.success("Stopped current operation");
+  };
 
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
 
@@ -134,6 +158,17 @@ export function Chat() {
           </div>
         </div>
       </div>
+
+      {isLoading && (
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={forceStop}
+            className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 shadow-sm"
+          >
+            Force Stop
+          </button>
+        </div>
+      )}
 
       <div
         ref={messagesContainerRef}
