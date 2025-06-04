@@ -226,6 +226,41 @@ async def stream_text(session_id: str, messages: List[ChatCompletionMessageParam
                 completion=completion_tokens
             )
 
+@app.post("/api/sessions/{session_id}/initialize")
+async def initialize_session(session_id: str):
+    """Initialize a session and create the sandbox pod proactively"""
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID required")
+    
+    try:
+       
+        if session_id in session_containers:
+            return {
+                "status": "exists", 
+                "session_id": session_id,
+                "sandbox_id": session_containers[session_id]
+            }
+        
+    
+        sandbox_id = await session_pod(session_id)
+        
+        return {
+            "status": "created",
+            "session_id": session_id, 
+            "sandbox_id": sandbox_id,
+            "message": "Sandbox environment initialized successfully"
+        }
+        
+    except Exception as e:
+        print(f"Session initialization failed: {e}")
+        return {
+            "status": "failed",
+            "session_id": session_id,
+            "error": str(e),
+            "message": "Sandbox initialization failed, will create on first code execution"
+        }
+
 @app.post("/api/chat")
 async def handle_chat_data(request: Request, protocol: str = Query('data')):
 
@@ -235,10 +270,10 @@ async def handle_chat_data(request: Request, protocol: str = Query('data')):
     if not session_id:
         raise HTTPException(status_code=400, detail="No session ID")
     
-    try:
-        await session_pod(session_id)
-    except Exception as e:
-        print(f"Initial Pod creation failed: {e}")
+    # try:
+    #     await session_pod(session_id)
+    # except Exception as e:
+    #     print(f"Initial Pod creation failed: {e}")
     
     openai_messages = convert_to_openai_messages(messages)
 
