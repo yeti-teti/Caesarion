@@ -64,20 +64,21 @@ export function Chat() {
     <div className="flex flex-col min-w-0 h-[calc(100dvh-52px)] bg-background">
 
       {/* Session indicator */}
-      <div className="bg-slate-50 border-b border-slate-200 px-4 py-2">
-        <div className="max-w-4xl mx-auto flex items-center gap-2 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400"></div>
-            <span>Sandbox Session: {sessionId.slice(-8)}</span>
-          </div>
-          {isLoading && (
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
-              <span>Working...</span>
+      <div className="absolute top-4 left-4 z-10">
+          <div className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                <span>Session: {sessionId.slice(-8)}</span>
+              </div>
+              {isLoading && (
+                <div className="flex items-center gap-1 ml-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
       <div
         ref={messagesContainerRef}
@@ -104,7 +105,7 @@ export function Chat() {
         />
       </div>
 
-      <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-4xl border-t border-slate-200">
+      <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-4xl">
         <MultimodalInput
           chatId={chatId}
           input={input}
